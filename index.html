@@ -85,13 +85,30 @@
       <button id="start-btn" class="primary-btn">Begin search</button>
 
       <details class="rules-disclosure">
-        <summary>How a turn works</summary>
+        <summary>Your mission</summary>
+        <p>You've gained access to Hadamard's Hoard, a massive trove of both treasured gems and meaningless rocks. Unfortunately, your opponent has access to it too, and you'll have to race them to collect gems quickly. But without any way to separate them from the rocks besides checking them one-by-one, you might be here for a while.</p>
+        <p>Unlike your opponent, you have a quantum computer. Can you use Grover's algorithm to more efficiently find the precious gems?</p>
+      </details>
+
+      <details class="rules-disclosure">
+        <summary>Turn order</summary>
         <ol>
           <li>Your <strong>opponent</strong> flips one card from its deck (more, if it holds Extra RAM). A gem card scores a point; the deck reshuffles at the start of its next turn.</li>
           <li><strong>You</strong> either <em>advance the algorithm</em> (move one tile right) or <em>measure</em> (resolve the odds on your current tile). Measuring always returns the arrow to tile 1.</li>
           <li>If events are on, a card flips and may affect either side — Decoherence blocks a tile, Cosmic Ray forces your next measurement, Extra RAM speeds up the opponent, Blue Screen resets its deck, Quantum Error Correction shields you from the next Decoherence.</li>
           <li>First to the gem target wins.</li>
         </ol>
+      </details>
+
+      <details class="rules-disclosure">
+        <summary>Player-versus-player version</summary>
+        <p>To download a play-at-home version, visit IQC's <a href="https://uwaterloo.ca/institute-for-quantum-computing/outreach/quantum-educators/teacher-resources" target="_blank" rel="noopener">teacher resources page</a>.</p>
+      </details>
+
+      <details class="rules-disclosure">
+        <summary>Credits</summary>
+        <p>Game developed by the IQC Scientific Outreach team in 2025. Web version developed with the assistance of artificial intelligence.</p>
+        <p>Contact <a href="mailto:iqc-outreach@uwaterloo.ca">iqc-outreach@uwaterloo.ca</a> with any questions.</p>
       </details>
     </div>
   </section>
@@ -106,8 +123,8 @@
         <span id="deck-size-label">N = 12</span>
         <span class="meta-dot">·</span>
         <span id="target-label">First to 3</span>
-        <span class="meta-dot" id="hard-mode-dot" style="display:none;">·</span>
-        <span id="hard-mode-label" class="hard-mode-label" style="display:none;">HARD MODE</span>
+        <span class="meta-dot">·</span>
+        <span id="game-mode-label" class="game-mode-label">Normal</span>
       </div>
       <button id="mute-btn" class="icon-btn" aria-label="Mute sound" title="Mute sound">🔊</button>
       <button id="new-game-btn" class="ghost-btn">New game</button>

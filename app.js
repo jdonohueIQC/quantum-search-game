@@ -564,6 +564,7 @@ function updateReadouts(){
 
   const myTurn = isQuantumTurn();
   measureBtn.disabled = !myTurn;
+  measureBtn.classList.toggle('forced', myTurn && q.forcedMeasure);
 
   if(!myTurn){
     advanceBtn.disabled = true;
@@ -618,7 +619,8 @@ function readConfigFromSetup(){
     probMode: document.querySelector('#prob-mode-group .pill.active').dataset.value,
     showProb: document.getElementById('show-prob-toggle').classList.contains('active'),
     eventsEnabled: mode !== 'no-events',
-    hardMode: mode === 'hard'
+    hardMode: mode === 'hard',
+    mode: mode
   };
 }
 
@@ -685,10 +687,10 @@ function wireSetupScreen(){
     const config = readConfigFromSetup();
     document.getElementById('deck-size-label').textContent = `N = ${config.deckSize}`;
     document.getElementById('target-label').textContent = `First to ${config.gemTarget}`;
-    const hardLabel = document.getElementById('hard-mode-label');
-    const hardDot = document.getElementById('hard-mode-dot');
-    hardLabel.style.display = config.hardMode ? 'inline' : 'none';
-    hardDot.style.display = config.hardMode ? 'inline' : 'none';
+    const modeLabel = document.getElementById('game-mode-label');
+    const modeText = { 'no-events': 'No Events', 'normal': 'Normal', 'hard': 'Hard Mode' };
+    modeLabel.textContent = modeText[config.mode];
+    modeLabel.className = `game-mode-label mode-${config.mode}`;
     resetEventPanel();
     newGame(config);
     showScreen('game-screen');
