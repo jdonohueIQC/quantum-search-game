@@ -65,9 +65,9 @@ body{
 
 .setup-logo{
   display:block;
-  height: 48px;
+  height: 40px;
   width: auto;
-  max-width: 60px;
+  max-width: 100%;
   margin-bottom: 22px;
 }
 
@@ -213,12 +213,13 @@ h1{
   display:flex; align-items:center; gap:14px;
   padding: 14px 28px;
   border-bottom: 1px solid var(--hairline);
+  flex-wrap: wrap;
 }
 .header-logo{
   display:block;
-  height: 30px;
+  height: 22px;
   width: auto;
-  max-width: 40px;
+  max-width: 170px;
   flex-shrink: 0;
 }
 .game-title{ font-weight:700; font-size:19px; }
@@ -299,16 +300,23 @@ h1{
 }
 .turn-readout .hl{ color: var(--ink); font-weight:600; }
 
-.qec-shield, .ram-indicator{
+.status-slot{
+  display:flex; flex-wrap:wrap; gap:8px;
+  min-height: 38px; /* reserves space so these chips never shift the layout when they appear/disappear */
+  margin-bottom: 14px;
+  align-items:flex-start;
+}
+.status-chip{
   font-family:'IBM Plex Mono', monospace;
   font-size: 12.5px;
   padding: 8px 12px;
   border-radius: 8px;
-  margin-bottom: 14px;
   width: fit-content;
+  visibility: hidden; /* toggled to visible in JS — layout space is always reserved */
 }
 .qec-shield{ background: rgba(0,93,126,0.18); color: var(--quantum-bright); border:1px solid var(--quantum); }
 .ram-indicator{ background: rgba(150,23,46,0.16); color: var(--classical-bright); border:1px solid var(--classical); }
+.cosmic-indicator{ background: rgba(242,201,76,0.16); color: var(--gem); border:1px solid var(--gem); }
 
 /* ---------- Quantum tiles ---------- */
 .quantum-board{
@@ -325,22 +333,26 @@ h1{
   border: 1.5px solid var(--hairline);
   background: var(--quantum-wash);
   color: #04141c;
-  overflow:hidden;
 }
 .q-tile.final{
   background: var(--quantum);
 }
 .q-tile.final svg{ width: 30px; height: 30px; }
+.q-tile.current{
+  border: 2.5px solid var(--gem);
+  box-shadow: 0 0 0 3px rgba(242,201,76,0.28), 0 0 16px rgba(242,201,76,0.55);
+}
 .q-tile.current::before{
   content:"▼";
   position:absolute; top:-19px; left:50%; transform:translateX(-50%);
-  color: var(--gem); font-size: 15px;
-  filter: drop-shadow(0 0 3px rgba(242,201,76,0.6));
+  color: var(--quantum-bright); font-size: 16px;
+  filter: drop-shadow(0 0 4px rgba(111,199,230,0.8));
 }
 .q-tile.blocked{
   background: repeating-linear-gradient(45deg, #241318, #241318 6px, #2c1a20 6px, #2c1a20 12px);
   border-color: var(--danger);
   color: var(--danger);
+  overflow: hidden;
 }
 .q-tile.blocked::after{
   content:"⛔";
@@ -483,14 +495,27 @@ h1{
   font-size: 13px; color: var(--ink-dim); line-height:1.5;
 }
 
-/* ===================== WIN SCREEN ===================== */
-#win-screen.active{
-  display:flex; align-items:center; justify-content:center; min-height:100vh;
+/* Game-over state, shown in place of the event card */
+.event-card.game-over{
+  text-align:center;
+  padding: 22px 16px;
+  display:flex; flex-direction:column; align-items:center; gap:4px;
 }
-.win-card{ text-align:center; max-width: 420px; padding: 20px; }
-.win-icon{ font-size: 56px; margin-bottom: 14px; }
-.win-card h1{ font-size:32px; -webkit-background-clip:initial; background:none; color: var(--ink); }
-.win-card p{ color: var(--ink-dim); margin-bottom: 26px; }
+.game-over-title{
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.event-card.win{ border-color: var(--gem); box-shadow: 0 0 0 3px rgba(242,201,76,0.18); }
+.event-card.win .game-over-title{ color: var(--gem); }
+.event-card.lose{ border-color: var(--danger); box-shadow: 0 0 0 3px rgba(224,99,122,0.18); }
+.event-card.lose .game-over-title{ color: var(--danger); }
+.event-card .game-over-btn{
+  margin-top: 12px;
+  width: auto;
+  padding: 10px 22px;
+  font-size: 14px;
+}
 
 /* ===================== RESPONSIVE ===================== */
 @media (max-width: 860px){

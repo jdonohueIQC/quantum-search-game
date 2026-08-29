@@ -342,12 +342,23 @@ function checkWin(){
 
 function endGame(winner){
   game.over = true;
-  document.getElementById('win-icon').innerHTML = winner === 'quantum' ? '⚛️' : '🃏';
-  document.getElementById('win-title').textContent = winner === 'quantum' ? 'You win!' : 'Your opponent wins.';
-  document.getElementById('win-sub').textContent = winner === 'quantum'
+  updateReadouts(); // lock the action buttons
+
+  const panel = document.getElementById('event-card');
+  const resultClass = winner === 'quantum' ? 'win' : 'lose';
+  const title = winner === 'quantum' ? 'YOU WIN' : 'YOU LOSE';
+  const desc = winner === 'quantum'
     ? 'Grover\u2019s algorithm found its target first.'
     : 'Classical search got lucky before you could measure it out.';
-  showScreen('win-screen');
+
+  panel.className = `event-card game-over ${resultClass}`;
+  panel.innerHTML = `
+    <div class="game-over-title">${title}</div>
+    <div class="event-card-desc">${desc}</div>
+    <button id="play-again-btn" class="primary-btn game-over-btn">Start new game</button>
+  `;
+  document.getElementById('play-again-btn').addEventListener('click', ()=> showScreen('setup-screen'));
+  document.querySelector('#event-panel .quadrant-head').textContent = 'Result';
 }
 
 /* ---------- Rendering ---------- */
@@ -446,19 +457,22 @@ function renderIndicators(){
 
   const qecEl = document.getElementById('qec-shield');
   if(q.qecCharges > 0){
-    qecEl.style.display = 'block';
+    qecEl.style.visibility = 'visible';
     document.getElementById('qec-count').textContent = `×${q.qecCharges}`;
   } else {
-    qecEl.style.display = 'none';
+    qecEl.style.visibility = 'hidden';
   }
+
+  const cosmicEl = document.getElementById('cosmic-indicator');
+  cosmicEl.style.visibility = q.forcedMeasure ? 'visible' : 'hidden';
 
   const ramEl = document.getElementById('ram-indicator');
   if(c.ram > 0){
-    ramEl.style.display = 'block';
+    ramEl.style.visibility = 'visible';
     document.getElementById('ram-count').textContent = c.ram;
     document.getElementById('ram-desc').textContent = `${1+c.ram} draws per turn`;
   } else {
-    ramEl.style.display = 'none';
+    ramEl.style.visibility = 'hidden';
   }
 }
 
@@ -622,9 +636,7 @@ function wireSetupScreen(){
     const config = readConfigFromSetup();
     document.getElementById('deck-size-label').textContent = `N = ${config.deckSize}`;
     document.getElementById('target-label').textContent = `First to ${config.gemTarget}`;
-    document.getElementById('event-card-title').textContent = 'No event yet';
-    document.getElementById('event-card-desc').textContent = 'The first event card will appear here once drawn.';
-    document.getElementById('event-card').classList.remove('flash');
+    resetEventPanel();
     newGame(config);
     showScreen('game-screen');
     game.phase = 'classical';
@@ -633,11 +645,20 @@ function wireSetupScreen(){
   });
 }
 
+function resetEventPanel(){
+  document.querySelector('#event-panel .quadrant-head').textContent = 'Latest event';
+  const panel = document.getElementById('event-card');
+  panel.className = 'event-card';
+  panel.innerHTML = `
+    <div class="event-card-title" id="event-card-title">No event yet</div>
+    <div class="event-card-desc" id="event-card-desc">The first event card will appear here once drawn.</div>
+  `;
+}
+
 function wireGameScreen(){
   document.getElementById('advance-btn').addEventListener('click', doAdvance);
   document.getElementById('measure-btn').addEventListener('click', doMeasure);
   document.getElementById('new-game-btn').addEventListener('click', ()=> showScreen('setup-screen'));
-  document.getElementById('play-again-btn').addEventListener('click', ()=> showScreen('setup-screen'));
   document.getElementById('mute-btn').addEventListener('click', ()=> setSoundEnabled(!soundOn));
 }
 
