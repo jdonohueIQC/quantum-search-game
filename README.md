@@ -55,11 +55,9 @@ a consistent "discrete tile, no overshoot" board for every size:
   where iteration 8 drops back to 98%), that would need a different, non-tile
   based board and would interact awkwardly with Decoherence as written. Flag
   if you want that explored as a separate mode.
-- **Event card counts.** The PDF shows cropped example cards (8 Decoherence,
-  4 Cosmic Ray, 1 Blue Screen, 4 Quantum Error Correction, and a partial view
-  of Extra RAM) totaling 23 visible against a stated deck of 24. I filled the
-  gap with 7 Extra RAM cards to reach 24. Adjust `freshEventDeck()` in
-  `app.js` if you have the exact printed counts.
+- **Event card counts** (confirmed): 24 cards total — 8 Decoherence,
+  5 Quantum Error Correction, 6 Extra RAM, 4 Cosmic Ray, 1 Blue Screen. See
+  `freshEventDeck()` in `app.js`.
 - **Holding cards is automated per your instructions**: Quantum Error
   Correction and Extra RAM apply immediately when drawn rather than being
   held and played later.
@@ -84,10 +82,40 @@ a consistent "discrete tile, no overshoot" board for every size:
 ## File overview
 
 - `index.html` — setup screen, game screen, win screen.
-- `style.css` — visual design (dark lab theme; cyan/violet for the quantum
-  panel, brass/amber for the classical panel).
+- `style.css` — visual design (dark lab theme; blue `#005D7E` for the
+  quantum panel, red `#96172E` for the classical/opponent panel).
 - `app.js` — all game state and logic: board construction, event deck,
-  classical dealer automation, quantum turn resolution, rendering.
+  opponent automation, quantum turn resolution, rendering, pacing.
+- `audio.js` — sound effects, entirely synthesized with the Web Audio API
+  (oscillators + a filtered noise burst) — no binary audio files to host.
+  Call `SFX.init()` from a user-gesture handler before any other sound; the
+  "Begin search" button already does this.
+- `UW_IQC_RGB_logo.png` — shown on the setup screen and in the game header.
+
+## Sound
+
+All sounds are generated in code (see `audio.js`), so there's nothing to
+download or license:
+
+- **Card flip** — short filtered noise burst, on every opponent draw
+  (fires once per card, so it repeats across Extra RAM draws in one turn).
+- **Measurement success** — three-note ascending chime.
+- **Measurement failure** — the "womp womp": two descending sawtooth notes.
+- **Each event type** has a distinct sound: Decoherence (downward glissando),
+  Cosmic Ray (sharp zap), Blue Screen (old-computer error beep),
+  Quantum Error Correction (bright two-note "shield up"), Extra RAM (rising
+  power-up arpeggio).
+
+A Sound on/off toggle is on the setup screen (default on).
+
+## Pacing
+
+Actions are deliberately staggered (see the `TIMING` object at the top of
+`app.js`) so each step is visible before the next begins: opponent card
+draws are spaced ~0.6s apart, a found gem is held on screen before your
+turn starts, and a measurement pauses briefly ("opening" the result box)
+before revealing success or failure. Adjust the numbers in `TIMING` to
+taste.
 
 ## Possible follow-ups not yet built
 

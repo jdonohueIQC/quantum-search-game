@@ -4,6 +4,18 @@
    See README.md for the design decisions behind the numbers.
    ============================================================ */
 
+/* ---------- Small SVG icon helpers (used instead of emoji so
+   colors are exact and consistent across platforms) ---------- */
+
+function svgDiamond(fill, size){
+  size = size || 26;
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}"><polygon points="12,2 22,9 12,22 2,9" fill="${fill}"/></svg>`;
+}
+function svgX(color, size){
+  size = size || 30;
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}"><line x1="4" y1="4" x2="20" y2="20" stroke="${color}" stroke-width="4.5" stroke-linecap="round"/><line x1="20" y1="4" x2="4" y2="20" stroke="${color}" stroke-width="4.5" stroke-linecap="round"/></svg>`;
+}
+
 /* ---------- Board math ---------- */
 
 // Rounded, dice-friendly boards mirroring the printed game boards.
@@ -17,7 +29,6 @@ const ROUNDED_BOARDS = {
 };
 
 function groverProbability(N, k){
-  // Probability of success after k Grover iterations (0-indexed).
   const theta = Math.asin(1/Math.sqrt(N));
   return Math.pow(Math.sin((2*k+1)*theta), 2);
 }
@@ -37,24 +48,26 @@ function buildBoard(N, mode){
   return tiles;
 }
 
-/* ---------- Event deck ---------- */
+/* ---------- Event deck ----------
+   24 cards total: 8 Decoherence, 5 Quantum Error Correction,
+   6 Extra RAM, 4 Cosmic Ray, 1 Blue Screen. */
 
 function freshEventDeck(){
   const cards = [];
   for(let i=0;i<8;i++) cards.push('DECOHERENCE');
+  for(let i=0;i<5;i++) cards.push('QEC');
+  for(let i=0;i<6;i++) cards.push('EXTRA_RAM');
   for(let i=0;i<4;i++) cards.push('COSMIC_RAY');
   for(let i=0;i<1;i++) cards.push('BLUE_SCREEN');
-  for(let i=0;i<4;i++) cards.push('QEC');
-  for(let i=0;i<7;i++) cards.push('EXTRA_RAM');
   return shuffle(cards);
 }
 
 const EVENT_TEXT = {
   DECOHERENCE: { title: 'Decoherence', desc: 'The right-most open tile is covered. Progress can\u2019t pass it until you next measure.' },
   COSMIC_RAY: { title: 'Cosmic Ray', desc: 'You must measure on your next turn.' },
-  BLUE_SCREEN: { title: 'Blue Screen', desc: 'The dealer\u2019s entire deck is reshuffled from scratch (it keeps any Extra RAM).' },
+  BLUE_SCREEN: { title: 'Blue Screen', desc: 'Your opponent\u2019s entire deck is reshuffled from scratch (it keeps any Extra RAM).' },
   QEC: { title: 'Quantum Error Correction', desc: 'You gain a shield that cancels the next Decoherence drawn.' },
-  EXTRA_RAM: { title: 'Extra RAM', desc: 'The dealer can now flip one additional card per turn.' }
+  EXTRA_RAM: { title: 'Extra RAM', desc: 'Your opponent can now flip one additional card per turn.' }
 };
 
 /* ---------- Utilities ---------- */
@@ -74,17 +87,31 @@ function freshClassicalDeck(N){
   return shuffle(cards);
 }
 
+/* ---------- Timing (ms) — tuned so each action reads clearly ---------- */
+
+const TIMING = {
+  cardDrawGap: 600,      // between successive opponent card flips (extra RAM)
+  gemHold: 850,          // pause after opponent finds a gem, before quantum turn begins
+  advancePause: 550,     // pause after "run the algorithm" before opponent's turn
+  measureOpen: 380,      // suspense delay before the measurement box reveals its result
+  measureHold: 1100,     // how long the result stays visible before moving on
+  eventReveal: 500,      // delay before an event's effect is logged/applied
+  eventHold: 900          // pause after an event resolves before opponent's turn
+};
+
 /* ---------- Game state ---------- */
 
 let game = null;
+let soundOn = true;
 
 function newGame(config){
+  const board = buildBoard(config.deckSize, config.probMode);
   game = {
     config,
-    board: buildBoard(config.deckSize, config.probMode),
+    board,
     quantum: {
       tileIndex: 0,
-      maxReachable: buildBoard(config.deckSize, config.probMode).length - 1,
+      maxReachable: board.length - 1,
       points: 0,
       qecCharges: 0,
       forcedMeasure: false
@@ -92,15 +119,18 @@ function newGame(config){
     classical: {
       deck: freshClassicalDeck(config.deckSize),
       revealed: 0,
+      lastRevealedIndex: -1,
+      pendingReshuffle: false,
       points: 0,
       ram: 0
     },
     eventDeck: config.eventsEnabled ? freshEventDeck() : [],
-    phase: 'classical', // classical -> quantum -> event -> classical...
+    phase: 'classical', // classical -> quantum -> event -> classical... ('resolving' is transient, disables input)
     over: false,
     log: []
   };
   render();
+  resetMeasureBox();
 }
 
 function finalIndex(){ return game.board.length - 1; }
@@ -110,32 +140,53 @@ function log(who, text){
   renderLog();
 }
 
-/* ---------- Turn logic: classical dealer ---------- */
+/* ---------- Turn logic: classical opponent ---------- */
 
 function runClassicalTurn(){
   const c = game.classical;
-  const draws = 1 + c.ram;
-  let scored = false;
-
-  for(let i=0;i<draws;i++){
-    if(c.revealed >= c.deck.length) break; // safety
-    const card = c.deck[c.revealed];
-    c.revealed++;
-    if(card.type === 'gem'){
-      c.points++;
-      log('c', `Dealer flips a gem! (${c.points}/${game.config.gemTarget})`);
-      c.ram = 0; // discard held RAM when a point is scored
-      c.deck = freshClassicalDeck(game.config.deckSize);
-      c.revealed = 0;
-      scored = true;
-      break; // deck reset — remaining extra draws this turn are moot
-    } else {
-      log('c', `Dealer flips a blank (${c.revealed}/${c.deck.length}).`);
-    }
+  if(c.pendingReshuffle){
+    c.deck = freshClassicalDeck(game.config.deckSize);
+    c.revealed = 0;
+    c.lastRevealedIndex = -1;
+    c.pendingReshuffle = false;
+    render();
   }
+  const totalDraws = 1 + c.ram;
+  drawNextClassicalCard(totalDraws, 0);
+}
 
+function drawNextClassicalCard(totalDraws, doneCount){
+  const c = game.classical;
+  if(doneCount >= totalDraws){
+    finishClassicalTurn();
+    return;
+  }
+  if(c.revealed >= c.deck.length){ finishClassicalTurn(); return; } // safety
+
+  const card = c.deck[c.revealed];
+  c.lastRevealedIndex = c.revealed;
+  c.revealed++;
+  SFX.cardFlip();
+
+  if(card.type === 'gem'){
+    c.points++;
+    log('c', `Opponent flips a gem! (${c.points}/${game.config.gemTarget})`);
+    c.ram = 0; // discard held RAM when a point is scored
+    c.pendingReshuffle = true; // deck reshuffles at the start of the opponent's NEXT turn
+    render();
+    if(checkWin()) return;
+    setTimeout(finishClassicalTurn, TIMING.gemHold);
+  } else {
+    log('c', `Opponent flips a blank (${c.revealed}/${c.deck.length}).`);
+    render();
+    setTimeout(()=> drawNextClassicalCard(totalDraws, doneCount+1), TIMING.cardDrawGap);
+  }
+}
+
+function finishClassicalTurn(){
   render();
   if(checkWin()) return;
+  resetMeasureBox();
   game.phase = 'quantum';
   updateReadouts();
 }
@@ -147,16 +198,19 @@ function canAdvance(){
   return q.tileIndex < q.maxReachable;
 }
 
+function isQuantumTurn(){
+  return game.phase === 'quantum' && !game.over;
+}
+
 function doAdvance(){
-  if(game.phase !== 'quantum' || game.over) return;
+  if(!isQuantumTurn()) return;
   const q = game.quantum;
-  if(q.forcedMeasure) return; // cosmic ray forces a measurement
+  if(q.forcedMeasure) return;
   if(!canAdvance()) return;
 
+  game.phase = 'resolving';
   q.tileIndex++;
   if(q.tileIndex === finalIndex()){
-    // Reaching the final tile counts as a measurement for interaction purposes,
-    // but the gem itself waits for next turn's guaranteed collection.
     q.maxReachable = finalIndex();
     if(q.qecCharges > 0) q.qecCharges = 0; // used up on any measurement
     q.forcedMeasure = false;
@@ -164,41 +218,54 @@ function doAdvance(){
   } else {
     log('q', `You run the algorithm. Now sitting at tile ${q.tileIndex+1}.`);
   }
-  afterQuantumAction();
+  render();
+  setTimeout(proceedAfterQuantumTurn, TIMING.advancePause);
 }
 
 function doMeasure(){
-  if(game.phase !== 'quantum' || game.over) return;
-  const q = game.quantum;
-  const tile = game.board[q.tileIndex];
-  const success = Math.random() < tile.p;
+  if(!isQuantumTurn()) return;
+  game.phase = 'resolving';
+  updateReadouts();
+  setMeasureBoxState('opening');
 
-  if(success){
-    q.points++;
-    log('q', `You measure… success! (${q.points}/${game.config.gemTarget})`);
-  } else {
-    log('q', `You measure… no luck this time.`);
-  }
+  setTimeout(()=>{
+    const q = game.quantum;
+    const tile = game.board[q.tileIndex];
+    const success = Math.random() < tile.p;
 
-  // Any measurement: return to tile 1, clear decoherence, consume QEC, clear cosmic ray.
-  q.tileIndex = 0;
-  q.maxReachable = finalIndex();
-  if(q.qecCharges > 0) q.qecCharges = 0;
-  q.forcedMeasure = false;
+    if(success){
+      q.points++;
+      setMeasureBoxState('success');
+      SFX.win();
+      log('q', `You measure… success! (${q.points}/${game.config.gemTarget})`);
+    } else {
+      setMeasureBoxState('fail');
+      SFX.fail();
+      log('q', `You measure… no luck this time.`);
+    }
 
-  afterQuantumAction();
+    // Any measurement: return to tile 1, clear decoherence, consume QEC, clear cosmic ray.
+    q.tileIndex = 0;
+    q.maxReachable = finalIndex();
+    if(q.qecCharges > 0) q.qecCharges = 0;
+    q.forcedMeasure = false;
+
+    render();
+    if(checkWin()) return;
+    setTimeout(proceedAfterQuantumTurn, TIMING.measureHold);
+  }, TIMING.measureOpen);
 }
 
-function afterQuantumAction(){
-  render();
-  if(checkWin()) return;
+function proceedAfterQuantumTurn(){
+  if(game.over) return;
   if(game.config.eventsEnabled){
     game.phase = 'event';
-    setTimeout(runEvent, 350);
+    updateReadouts();
+    setTimeout(runEvent, TIMING.eventReveal);
   } else {
     game.phase = 'classical';
     updateReadouts();
-    setTimeout(runClassicalTurn, 500);
+    setTimeout(runClassicalTurn, 400);
   }
 }
 
@@ -208,7 +275,8 @@ function runEvent(){
   if(game.eventDeck.length === 0) game.eventDeck = freshEventDeck();
   const card = game.eventDeck.shift();
   const info = EVENT_TEXT[card];
-  let text = `${info.title} — ${info.desc}`;
+  let title = info.title;
+  let desc = info.desc;
 
   const q = game.quantum;
   const c = game.classical;
@@ -217,38 +285,45 @@ function runEvent(){
     case 'DECOHERENCE': {
       if(q.qecCharges > 0){
         q.qecCharges--;
-        text = `Decoherence drawn, but your error correction shield cancels it.`;
+        desc = 'Your error correction shield cancels this Decoherence card.';
+        SFX.qec();
       } else if(q.maxReachable > 0){
         q.maxReachable--;
         if(q.tileIndex > q.maxReachable) q.tileIndex = q.maxReachable;
-        text = `${info.title} — tile ${q.maxReachable+2} is now covered. ${info.desc}`;
+        SFX.decoherence();
       } else {
-        text = `${info.title} drawn, but every tile is already covered — no further effect.`;
+        desc = 'Every tile is already covered — no further effect.';
+        SFX.decoherence();
       }
       break;
     }
     case 'COSMIC_RAY':
       q.forcedMeasure = true;
+      SFX.cosmicRay();
       break;
     case 'BLUE_SCREEN':
       c.deck = freshClassicalDeck(game.config.deckSize);
       c.revealed = 0;
-      text = `${info.title} — the dealer's deck is wiped and reshuffled (RAM kept).`;
+      c.lastRevealedIndex = -1;
+      c.pendingReshuffle = false;
+      SFX.blueScreen();
       break;
     case 'QEC':
       q.qecCharges++;
+      SFX.qec();
       break;
     case 'EXTRA_RAM':
       c.ram++;
+      SFX.extraRam();
       break;
   }
 
-  log('e', text);
-  showEventBanner(text);
+  log('e', `${title} — ${desc}`);
+  renderEventCard(title, desc);
   render();
   game.phase = 'classical';
   updateReadouts();
-  setTimeout(runClassicalTurn, 900);
+  setTimeout(runClassicalTurn, TIMING.eventHold);
 }
 
 /* ---------- Win check ---------- */
@@ -267,8 +342,8 @@ function checkWin(){
 
 function endGame(winner){
   game.over = true;
-  document.getElementById('win-icon').textContent = winner === 'quantum' ? '⚛️' : '🃏';
-  document.getElementById('win-title').textContent = winner === 'quantum' ? 'You win!' : 'The dealer wins.';
+  document.getElementById('win-icon').innerHTML = winner === 'quantum' ? '⚛️' : '🃏';
+  document.getElementById('win-title').textContent = winner === 'quantum' ? 'You win!' : 'Your opponent wins.';
   document.getElementById('win-sub').textContent = winner === 'quantum'
     ? 'Grover\u2019s algorithm found its target first.'
     : 'Classical search got lucky before you could measure it out.';
@@ -293,11 +368,23 @@ function renderGems(){
     Array.from({length: target}).map((_,i)=>`<span class="gem-slot ${i<c.points?'filled':''}">💎</span>`).join('');
 }
 
+function hexToRgb(hex){
+  const h = hex.replace('#','');
+  return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+}
+function mixColor(hexA, hexB, t){
+  const a = hexToRgb(hexA), b = hexToRgb(hexB);
+  const r = Math.round(a[0] + (b[0]-a[0])*t);
+  const g = Math.round(a[1] + (b[1]-a[1])*t);
+  const bl = Math.round(a[2] + (b[2]-a[2])*t);
+  return `rgb(${r},${g},${bl})`;
+}
 function probToColor(p){
-  // washed-out (low p) -> bright cyan (high p)
-  const alpha = 0.15 + p*0.65;
-  const light = 20 + p*35;
-  return `hsla(190, 75%, ${light}%, ${alpha + 0.35})`;
+  // washed-out blue/white at low probability -> pure quantum blue at high probability
+  return mixColor('#e9f5fa', '#005D7E', Math.min(p, 1));
+}
+function textColorFor(p){
+  return p > 0.55 ? '#eafbff' : '#04141c';
 }
 
 function renderQuantumBoard(){
@@ -311,16 +398,16 @@ function renderQuantumBoard(){
     if(idx > q.maxReachable) div.classList.add('blocked');
     if(tile.final) div.classList.add('final');
 
-    if(tile.final){
-      div.textContent = '💎';
+    if(idx > q.maxReachable){
+      // blocked styling (from CSS) takes over; leave blank
+    } else if(tile.final){
+      div.innerHTML = svgDiamond('#0b0e14', 30);
     } else {
-      const pct = Math.round(tile.p*100);
+      div.style.background = probToColor(tile.p);
+      div.style.color = textColorFor(tile.p);
       if(game.config.showProb){
+        const pct = Math.round(tile.p*100);
         div.textContent = game.config.probMode === 'rounded' ? tile.label : `${pct}%`;
-        div.style.background = probToColor(tile.p);
-      } else {
-        div.style.background = probToColor(tile.p);
-        div.textContent = '';
       }
     }
     wrap.appendChild(div);
@@ -330,17 +417,27 @@ function renderQuantumBoard(){
 function renderClassicalDeck(){
   const c = game.classical;
   const wrap = document.getElementById('classical-deck');
+  wrap.setAttribute('data-size', game.config.deckSize);
   wrap.innerHTML = '';
   c.deck.forEach((card, idx)=>{
-    const div = document.createElement('div');
+    const outer = document.createElement('div');
+    outer.className = 'c-card';
+    const face = document.createElement('div');
+
     if(idx < c.revealed){
-      div.className = `c-card ${card.type === 'gem' ? 'drawn-gem' : 'drawn-blank'}`;
-      div.textContent = card.type === 'gem' ? '💎' : '·';
+      outer.classList.toggle('revealed', idx === c.lastRevealedIndex);
+      if(card.type === 'gem'){
+        face.className = 'c-card-face gem-face';
+        face.innerHTML = svgDiamond('#f2c94c', 22);
+      } else {
+        face.className = 'c-card-face blank-face fail-face';
+        face.innerHTML = svgX('#8b93a7', 16);
+      }
     } else {
-      div.className = 'c-card';
-      div.textContent = '';
+      face.className = 'c-card-face';
     }
-    wrap.appendChild(div);
+    outer.appendChild(face);
+    wrap.appendChild(outer);
   });
 }
 
@@ -368,19 +465,39 @@ function renderIndicators(){
 function renderLog(){
   const wrap = document.getElementById('log-list');
   const cls = {q:'who-q', c:'who-c', e:'who-e'};
-  const label = {q:'YOU', c:'DEALER', e:'EVENT'};
+  const label = {q:'YOU', c:'OPPONENT', e:'EVENT'};
   wrap.innerHTML = game.log.slice(-40).map(entry =>
     `<div class="log-entry"><span class="${cls[entry.who]}">[${label[entry.who]}]</span> ${entry.text}</div>`
   ).reverse().join('');
 }
 
-function showEventBanner(text){
-  const banner = document.getElementById('event-banner');
-  banner.textContent = `⚡ ${text}`;
-  banner.classList.add('show');
-  clearTimeout(showEventBanner._t);
-  showEventBanner._t = setTimeout(()=> banner.classList.remove('show'), 2600);
+function renderEventCard(title, desc){
+  const panel = document.getElementById('event-card');
+  document.getElementById('event-card-title').textContent = title;
+  document.getElementById('event-card-desc').textContent = desc;
+  panel.classList.remove('flash');
+  void panel.offsetWidth; // restart animation
+  panel.classList.add('flash');
 }
+
+function setMeasureBoxState(state){
+  const inner = document.getElementById('measure-box-inner');
+  const icon = document.getElementById('measure-icon');
+  inner.classList.remove('opening','success','fail');
+  if(state === 'closed'){
+    icon.textContent = '?';
+    icon.innerHTML = '?';
+  } else if(state === 'opening'){
+    inner.classList.add('opening');
+  } else if(state === 'success'){
+    inner.classList.add('success');
+    icon.innerHTML = svgDiamond('#f2c94c', 26);
+  } else if(state === 'fail'){
+    inner.classList.add('fail');
+    icon.innerHTML = svgX('#e0637a', 28);
+  }
+}
+function resetMeasureBox(){ setMeasureBoxState('closed'); }
 
 function updateReadouts(){
   const q = game.quantum, c = game.classical;
@@ -389,14 +506,32 @@ function updateReadouts(){
   const advanceBtn = document.getElementById('advance-btn');
   const measureBtn = document.getElementById('measure-btn');
   const measureSub = document.getElementById('measure-sub');
+  const advanceSub = advanceBtn.querySelector('.action-sub');
 
   cEl.textContent = game.phase === 'classical'
-    ? 'The dealer is searching…'
-    : `Deck has ${c.deck.length - c.revealed} card(s) left before a reshuffle.`;
+    ? 'Your opponent is searching…'
+    : c.pendingReshuffle
+      ? 'Gem found — deck reshuffles at the start of the next turn.'
+      : `Deck has ${c.deck.length - c.revealed} card(s) left before a reshuffle.`;
 
-  const isQuantumTurn = game.phase === 'quantum' && !game.over;
-  advanceBtn.disabled = !isQuantumTurn || q.forcedMeasure || !canAdvance();
-  measureBtn.disabled = !isQuantumTurn;
+  const myTurn = isQuantumTurn();
+  measureBtn.disabled = !myTurn;
+
+  if(!myTurn){
+    advanceBtn.disabled = true;
+    advanceSub.textContent = 'Move one tile right';
+  } else if(q.forcedMeasure){
+    advanceBtn.disabled = true;
+    advanceSub.textContent = 'Unavailable — Cosmic Ray forces a measurement';
+  } else if(!canAdvance()){
+    advanceBtn.disabled = true;
+    advanceSub.textContent = game.board[q.tileIndex].final
+      ? 'No further tiles — measure to collect'
+      : 'Unavailable — next tile is covered by Decoherence';
+  } else {
+    advanceBtn.disabled = false;
+    advanceSub.textContent = 'Move one tile right';
+  }
 
   const tile = game.board[q.tileIndex];
   if(tile.final){
@@ -409,8 +544,8 @@ function updateReadouts(){
     measureSub.textContent = 'Try your current odds';
   }
 
-  if(!isQuantumTurn){
-    qEl.textContent = game.phase === 'classical' ? 'Waiting for the dealer to draw…' : 'Resolving event…';
+  if(!myTurn){
+    qEl.textContent = game.phase === 'classical' ? 'Waiting for your opponent to draw…' : 'Resolving event…';
   } else if(q.forcedMeasure){
     qEl.innerHTML = `<span class="hl">Cosmic ray!</span> You must measure this turn.`;
   } else if(tile.final){
@@ -437,6 +572,18 @@ function readConfigFromSetup(){
   };
 }
 
+function setSoundEnabled(on){
+  soundOn = on;
+  SFX.setEnabled(on);
+  const setupToggle = document.getElementById('sound-toggle');
+  setupToggle.classList.toggle('active', on);
+  setupToggle.setAttribute('aria-checked', on);
+  const muteBtn = document.getElementById('mute-btn');
+  muteBtn.textContent = on ? '🔊' : '🔇';
+  muteBtn.setAttribute('aria-label', on ? 'Mute sound' : 'Unmute sound');
+  muteBtn.title = on ? 'Mute sound' : 'Unmute sound';
+}
+
 function wireSetupScreen(){
   document.querySelectorAll('.step-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
@@ -459,18 +606,25 @@ function wireSetupScreen(){
       p.classList.add('active');
     });
   });
-  ['show-prob-toggle','events-toggle'].forEach(id=>{
+  ['show-prob-toggle','events-toggle','sound-toggle'].forEach(id=>{
     const el = document.getElementById(id);
     el.addEventListener('click', ()=>{
       el.classList.toggle('active');
       el.setAttribute('aria-checked', el.classList.contains('active'));
+      if(id === 'sound-toggle'){
+        setSoundEnabled(el.classList.contains('active'));
+      }
     });
   });
 
   document.getElementById('start-btn').addEventListener('click', ()=>{
+    SFX.init(); // unlock audio on this user gesture
     const config = readConfigFromSetup();
     document.getElementById('deck-size-label').textContent = `N = ${config.deckSize}`;
     document.getElementById('target-label').textContent = `First to ${config.gemTarget}`;
+    document.getElementById('event-card-title').textContent = 'No event yet';
+    document.getElementById('event-card-desc').textContent = 'The first event card will appear here once drawn.';
+    document.getElementById('event-card').classList.remove('flash');
     newGame(config);
     showScreen('game-screen');
     game.phase = 'classical';
@@ -484,6 +638,7 @@ function wireGameScreen(){
   document.getElementById('measure-btn').addEventListener('click', doMeasure);
   document.getElementById('new-game-btn').addEventListener('click', ()=> showScreen('setup-screen'));
   document.getElementById('play-again-btn').addEventListener('click', ()=> showScreen('setup-screen'));
+  document.getElementById('mute-btn').addEventListener('click', ()=> setSoundEnabled(!soundOn));
 }
 
 wireSetupScreen();
