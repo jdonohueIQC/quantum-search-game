@@ -26,7 +26,111 @@ This is a static site — no build step, no dependencies.
 | Database size (N) | 4, 12, 30, 100 | 12 |
 | Probability model | Rounded (dice-friendly) / Real Grover formula | Rounded |
 | Show probabilities on tiles | On/Off | On |
-| Event cards | On/Off | On |
+| Sound | On/Off | On |
+| Game mode | No events / Normal / Hard | Normal |
+
+## Balance
+
+**A/B/C switch**: `app.js` has three `EVENT_DECK_NORMAL` lines right next
+to each other — two commented out — so you can flip between them by
+moving which line is commented, no other changes needed:
+
+| Deck | Composition | N=12 / N=30 / N=100 |
+|---|---|---|
+| Decoherence-heavy (**default**) | 8 Decoherence, 6 QEC, 3 Extra RAM, 2 Cosmic Ray, 1 Blue Screen, 4 Neutral | ~50% / ~87% / ~98% |
+| Tuned (QEC-heavy) | 8 Decoherence, 8 QEC, 3 Extra RAM, 4 Cosmic Ray, 1 Blue Screen | ~50% / ~86% / ~97% |
+| Original | 8 Decoherence, 5 QEC, 6 Extra RAM, 4 Cosmic Ray, 1 Blue Screen | ~35% / ~72% / ~92% |
+
+The current default swaps QEC-heavy for Decoherence-heavy (8 vs. 6, rather
+than 8 vs. 8) and adds 4 "Neutral" cards that do nothing — both purely
+for feel rather than balance, since the numbers land within simulation
+noise of the older tuned deck: Decoherence outnumbering QEC makes a
+shield feel like it's covering you against genuine risk rather than a
+near-certainty, and the Neutral cards add misdirection (a quiet turn no
+longer means "Decoherence wasn't in the deck this time," since it could
+just as easily have been a Neutral draw).
+
+Worth noting on the **original deck**: it was reported as feeling
+slightly quantum-favored at N=12 in actual play, but simulation puts it
+at ~35% (opponent favored). I checked two possible explanations — whether
+Blue Screen also clearing the opponent's stacked Extra RAM would close
+the gap (it doesn't: +1-2 points, tested at 25k trials), and whether
+letting the quantum player choose *when* to arm Quantum Error Correction
+(immediately, or deferred until their next reset, for guaranteed
+full-cycle coverage instead of whatever's left of the current cycle)
+would help (it's a real but modest edge: roughly +0-3 points, not enough
+to flip anything). Neither explains the discrepancy; my best guess is
+limited-sample human playtesting rather than a hidden rule mismatch, but
+the switch is there if you want to compare them side-by-side yourself.
+QEC currently always arms immediately in the actual game (delayed-arm
+isn't implemented as a player choice, just measured in the simulator).
+
+The event deck compositions were tuned against a Monte Carlo simulator
+rather than by feel — 15,000–30,000 simulated full races per
+configuration, with the quantum player following a near-optimal fixed
+policy (always advance toward whichever tile minimizes expected
+turns-per-gem, i.e. `(iterations+1) / p(iterations)`, recomputed on the
+fly if Decoherence caps how far it can reach). That's worth knowing if
+you ever change the board's tile probabilities or the gem target — the
+tuning below is specific to the current rounded boards and a target of
+3 gems, and would need re-tuning if those change.
+
+**Why N=12 needs help but N=30/100 don't**: even with no events at all,
+the quantum board's structure already gives the quantum player asymptotically
+increasing odds as N grows (roughly 1.6× fewer turns-per-gem at N=12, 3.2×
+at N=30, 6.7× at N=100, in the "no events" baseline) — which is the game's
+whole point, but it means a single flat event deck that's fair at N=12 will
+still look fair-ish at N=30 and only mildly favor the quantum player at
+N=100, undercutting the "significant"/"massive" edges you asked for. It
+also means a deck that's already tilted toward the opponent at N=12 tilts
+even further at higher N, compounding in the wrong direction. Conveniently,
+one flat 24-card composition turned out to hit all three targets at once
+(see below) without needing per-size tuning for normal mode.
+
+**Normal mode** — one 24-card deck, used at every N (the current default,
+Decoherence-heavy with Neutral cards — see the A/B/C switch above for
+the alternatives). Simulated quantum win rate (first to 3 gems):
+
+| N | Quantum win rate |
+|---|---|
+| 4 | ~28% (opponent favored — not a design target, just how the small board falls out) |
+| 12 | ~50% (balanced) |
+| 30 | ~87% (significant quantum edge) |
+| 100 | ~98% (massive quantum edge) |
+
+**Hard mode** — corrected version. My first attempt at this (a permanent
+RAM head start for the opponent, plus a QEC-heavy event deck to keep
+N=12 from becoming a total lock) had it backwards: it made the *event
+deck* friendlier to the quantum player than normal mode, which defeats
+the point of a mode meant to punish the quantum player. Scrapped that
+RAM-handicap mechanic entirely — hard mode is now just a second 24-card
+event deck, same mechanic as normal mode, with QEC nearly removed and
+Extra RAM roughly tripled:
+
+**8 Decoherence, 1 QEC, 10 Extra RAM, 4 Cosmic Ray, 1 Blue Screen**
+
+Decoherence and Cosmic Ray (both purely anti-quantum) are unchanged from
+the normal deck; QEC (quantum's only defense) drops from 6–8 cards to 1;
+Extra RAM (the opponent's only offense) goes from 3 to 10. Blue Screen
+stays capped at 1. One flat deck for every board size, matching how
+normal mode already worked:
+
+| N | Quantum win rate (hard mode) |
+|---|---|
+| 4 | ~14% (opponent heavily favored — not a specific target) |
+| 12 | ~20% (clear opponent advantage) |
+| 30 | ~53% (even) |
+| 100 | ~80% (quantum still favored) |
+
+If you want it to punish harder or softer at a given N, the two levers
+that matter most are QEC count (quantum's defense) and Extra RAM count
+(the opponent's speed) — Decoherence and Cosmic Ray have a smaller effect
+since neither directly speeds up the opponent.
+
+If you want to re-tune any of this, a small Monte Carlo script (a plain
+port of the turn loop in `app.js`, minus rendering/timing) is a much
+faster way to iterate than playtesting by hand — happy to hand over that
+script if useful.
 
 ## Design decisions & assumptions (please sanity-check these)
 
@@ -82,21 +186,21 @@ a consistent "discrete tile, no overshoot" board for every size:
 ## File overview
 
 - `index.html` — setup screen, game screen, win screen.
-- `style.css` — visual design (dark lab theme; blue `#005D7E` for the
-  quantum panel, red `#96172E` for the classical/opponent panel).
+- `style.css` — visual design (dark lab theme; red `#96172E` for the
+  quantum panel, blue `#005D7E` for the classical/opponent panel).
 - `app.js` — all game state and logic: board construction, event deck,
   opponent automation, quantum turn resolution, rendering, pacing.
 - `audio.js` — sound effects, entirely synthesized with the Web Audio API
   (oscillators + a filtered noise burst) — no binary audio files to host.
   Call `SFX.init()` from a user-gesture handler before any other sound; the
   "Begin search" button already does this.
-- `UW_IQC_shield_reverse.png` — the crest mark, shown on the setup screen
-  and in the game header. Cropped from the university's full "black
-  reverse" lockup file down to just the shield (the original file was a
-  2011×369px canvas — mostly an invisible white wordmark and empty
-  margin — which is what caused the oversized/broken layout when used
-  directly). This version already has the correct white-fill/black-line
-  treatment for a dark background, so no CSS color filter is applied to it.
+- `UW_IQC_logo_reverse.png` — the full crest + wordmark lockup, shown on
+  the setup screen and in the game header. Cropped from the university's
+  "black reverse" lockup file down to its actual content bounding box (the
+  original file was a 2011×369px canvas with a large empty/transparent
+  margin, which is what caused the oversized layout the first time around).
+  The wordmark in this file is intentionally white, meant for dark
+  backgrounds, so no CSS color filter is applied to it.
 
 ## Sound
 

@@ -6,16 +6,16 @@
   --ink: #e9ecf3;
   --ink-dim: #8b93a7;
 
-  /* Quantum = blue */
-  --quantum: #005D7E;
-  --quantum-deep: #003a4f;
-  --quantum-bright: #6fc7e6;
-  --quantum-wash: #e9f5fa; /* near-white/blue for the low-probability end of the gradient */
+  /* Quantum = red (swapped from blue) */
+  --quantum: #96172E;
+  --quantum-deep: #5c0e1d;
+  --quantum-bright: #e28a97;
+  --quantum-wash: #fbe9ec; /* near-white/pink for the low-probability end of the gradient */
 
-  /* Classical = red */
-  --classical: #96172E;
-  --classical-deep: #5c0e1d;
-  --classical-bright: #e28a97;
+  /* Classical = blue (swapped from red) */
+  --classical: #005D7E;
+  --classical-deep: #003a4f;
+  --classical-bright: #6fc7e6;
 
   --gem: #f2c94c;
   --danger: #e0637a;
@@ -36,8 +36,8 @@ html,body{
 
 body{
   background-image:
-    radial-gradient(ellipse 900px 500px at 15% -10%, rgba(0,93,126,0.12), transparent 60%),
-    radial-gradient(ellipse 900px 500px at 90% 10%, rgba(150,23,46,0.10), transparent 60%);
+    radial-gradient(ellipse 900px 500px at 15% -10%, rgba(150,23,46,0.12), transparent 60%),
+    radial-gradient(ellipse 900px 500px at 90% 10%, rgba(0,93,126,0.10), transparent 60%);
   background-attachment: fixed;
 }
 
@@ -106,6 +106,19 @@ h1{
   margin-bottom: 28px;
 }
 
+.setup-field-wide{ grid-column: 1 / -1; }
+
+.mode-note{
+  font-size: 12.5px;
+  color: var(--ink-dim);
+  background: var(--bg-panel-raised);
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: -12px 0 20px 0;
+  line-height: 1.5;
+}
+
 .setup-field label{
   display:block;
   font-size: 13px;
@@ -155,7 +168,7 @@ h1{
 .pill.active{
   background: linear-gradient(135deg, var(--quantum-deep), var(--quantum));
   border-color: var(--quantum-bright);
-  color: #eafbff;
+  color: #fdf1f2;
   font-weight: 600;
 }
 
@@ -176,7 +189,7 @@ h1{
   transition: all .15s ease;
 }
 .switch.active{ background: linear-gradient(135deg, var(--quantum-deep), var(--quantum)); border-color: var(--quantum-bright); }
-.switch.active .knob{ left: 22px; background:#eafbff; }
+.switch.active .knob{ left: 22px; background:#fdf1f2; }
 
 .primary-btn{
   width:100%;
@@ -191,7 +204,7 @@ h1{
   cursor:pointer;
   transition: transform .1s ease, box-shadow .15s ease;
 }
-.primary-btn:hover{ box-shadow: 0 0 0 3px rgba(111,199,230,0.3); }
+.primary-btn:hover{ box-shadow: 0 0 0 3px rgba(226,138,151,0.3); }
 .primary-btn:active{ transform: scale(0.99); }
 
 .rules-disclosure{
@@ -228,6 +241,11 @@ h1{
   font-size: 13px; color: var(--ink-dim);
 }
 .meta-dot{ margin: 0 4px; }
+.hard-mode-label{
+  color: var(--classical-bright);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
 .icon-btn{
   margin-left:auto;
   background:none; border:1px solid var(--hairline);
@@ -284,8 +302,8 @@ h1{
   font-size: 10.5px; text-transform:uppercase; letter-spacing:.06em;
   padding: 3px 8px; border-radius: 5px;
 }
-.quantum-tag{ background: rgba(0,93,126,0.25); color: var(--quantum-bright); }
-.classical-tag{ background: rgba(150,23,46,0.22); color: var(--classical-bright); }
+.quantum-tag{ background: rgba(150,23,46,0.25); color: var(--quantum-bright); }
+.classical-tag{ background: rgba(0,93,126,0.22); color: var(--classical-bright); }
 
 .gem-tally{ display:flex; gap:5px; font-size:20px; }
 .gem-slot{ opacity:0.25; }
@@ -314,8 +332,8 @@ h1{
   width: fit-content;
   visibility: hidden; /* toggled to visible in JS — layout space is always reserved */
 }
-.qec-shield{ background: rgba(0,93,126,0.18); color: var(--quantum-bright); border:1px solid var(--quantum); }
-.ram-indicator{ background: rgba(150,23,46,0.16); color: var(--classical-bright); border:1px solid var(--classical); }
+.qec-shield{ background: rgba(150,23,46,0.18); color: var(--quantum-bright); border:1px solid var(--quantum); }
+.ram-indicator{ background: rgba(0,93,126,0.16); color: var(--classical-bright); border:1px solid var(--classical); }
 .cosmic-indicator{ background: rgba(242,201,76,0.16); color: var(--gem); border:1px solid var(--gem); }
 
 /* ---------- Quantum tiles ---------- */
@@ -346,7 +364,7 @@ h1{
   content:"▼";
   position:absolute; top:-19px; left:50%; transform:translateX(-50%);
   color: var(--quantum-bright); font-size: 16px;
-  filter: drop-shadow(0 0 4px rgba(111,199,230,0.8));
+  filter: drop-shadow(0 0 4px rgba(226,138,151,0.8));
 }
 .q-tile.blocked{
   background: repeating-linear-gradient(45deg, #241318, #241318 6px, #2c1a20 6px, #2c1a20 12px);

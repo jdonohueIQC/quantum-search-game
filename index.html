@@ -59,15 +59,6 @@
         </div>
 
         <div class="setup-field">
-          <label>Event cards</label>
-          <div class="toggle-row">
-            <span class="toggle-off-label">Off</span>
-            <button type="button" class="switch active" id="events-toggle" role="switch" aria-checked="true"><span class="knob"></span></button>
-            <span class="toggle-on-label">On</span>
-          </div>
-        </div>
-
-        <div class="setup-field">
           <label>Sound</label>
           <div class="toggle-row">
             <span class="toggle-off-label">Off</span>
@@ -76,7 +67,20 @@
           </div>
         </div>
 
+        <div class="setup-field setup-field-wide">
+          <label>Game mode</label>
+          <div class="pill-group" id="game-mode-group">
+            <button type="button" class="pill" data-value="no-events">No events</button>
+            <button type="button" class="pill active" data-value="normal">Normal</button>
+            <button type="button" class="pill" data-value="hard">Hard</button>
+          </div>
+        </div>
+
       </div>
+
+      <p class="mode-note" id="game-mode-note">
+        Deal with decoherence and other challenges for quantum computers.
+      </p>
 
       <button id="start-btn" class="primary-btn">Begin search</button>
 
@@ -102,6 +106,8 @@
         <span id="deck-size-label">N = 12</span>
         <span class="meta-dot">·</span>
         <span id="target-label">First to 3</span>
+        <span class="meta-dot" id="hard-mode-dot" style="display:none;">·</span>
+        <span id="hard-mode-label" class="hard-mode-label" style="display:none;">HARD MODE</span>
       </div>
       <button id="mute-btn" class="icon-btn" aria-label="Mute sound" title="Mute sound">🔊</button>
       <button id="new-game-btn" class="ghost-btn">New game</button>

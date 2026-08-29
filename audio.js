@@ -128,6 +128,11 @@ const SFX = (function(){
       tone(440, 0,    0.09, 'triangle', 0.13);
       tone(660, 0.10, 0.09, 'triangle', 0.13);
       tone(880, 0.20, 0.16, 'triangle', 0.15);
+    },
+
+    // A single soft, unremarkable blip — Neutral (nothing happens).
+    neutral(){
+      tone(440, 0, 0.08, 'sine', 0.06);
     }
   };
 })();

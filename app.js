@@ -48,17 +48,47 @@ function buildBoard(N, mode){
   return tiles;
 }
 
-/* ---------- Event deck ----------
-   24 cards total: 8 Decoherence, 5 Quantum Error Correction,
-   6 Extra RAM, 4 Cosmic Ray, 1 Blue Screen. */
+/* ---------- Normal-mode event deck: pick ONE of the three lines below ----------
+   Simulated quantum win rate at N=12 / N=30 / N=100 (first to 3 gems, 30k trials):
+     Decoherence-heavy deck -> ~50% / ~87% / ~98% (current default)
+       8 Decoherence, 6 QEC, 3 Extra RAM, 2 Cosmic Ray, 1 Blue Screen,
+       4 Neutral (does nothing — pure misdirection, so a quiet turn
+       doesn't tell you Decoherence is off the table). Decoherence
+       outnumbering QEC 8-to-6 makes the shield feel earned rather than
+       automatic, without hurting the balance at all — numbers land
+       within noise of the older QEC-heavy tuned deck below.
+     tuned deck    -> ~50% / ~86% / ~97% — QEC-heavy version (8/8/3/4/1),
+       no Neutral cards, kept here for comparison.
+     original deck -> ~35% / ~72% / ~92% (opponent favored throughout) —
+       the very first deck used (8/5/6/4/1). It was reported as feeling
+       slightly quantum-favored in actual play, but simulation puts it
+       the other way; neither "Blue Screen also clears RAM" (+1-2 points,
+       tested) nor "player chooses when to arm QEC" (+0-3 points, tested)
+       closes that gap. Likely just limited-sample human playtesting
+       rather than a hidden rule mismatch.
+   Swap which line is commented to compare any of the three live. */
+const EVENT_DECK_NORMAL = { DECOHERENCE:8, QEC:6, EXTRA_RAM:3, COSMIC_RAY:2, BLUE_SCREEN:1, NEUTRAL:4 }; // Decoherence-heavy deck (current default)
+// const EVENT_DECK_NORMAL = { DECOHERENCE:8, QEC:8, EXTRA_RAM:3, COSMIC_RAY:4, BLUE_SCREEN:1 }; // tuned deck (QEC-heavy, no Neutral)
+// const EVENT_DECK_NORMAL = { DECOHERENCE:8, QEC:5, EXTRA_RAM:6, COSMIC_RAY:4, BLUE_SCREEN:1 }; // original deck
 
-function freshEventDeck(){
+/* ---------- Hard-mode event deck ----------
+   Punishes the quantum player directly through the same 24-card event
+   deck mechanic — no separate RAM-handicap stat needed. Compared to the
+   normal deck, QEC is nearly removed (1 card — "harder to come by") and
+   Extra RAM is roughly tripled (10 cards — "RAM is cheap"), with
+   Decoherence and Cosmic Ray unchanged and Blue Screen still capped at 1.
+   One flat deck works for every board size (same as normal mode):
+   simulated quantum win rate is ~14% at N=4, ~20% at N=12 (opponent
+   favored), ~53% at N=30 (even), ~80% at N=100 (quantum favored) —
+   30k-trial Monte Carlo, first to 3 gems. See README.md "Balance". */
+const EVENT_DECK_HARD = { DECOHERENCE:8, QEC:1, EXTRA_RAM:10, COSMIC_RAY:4, BLUE_SCREEN:1 };
+
+function freshEventDeck(hardMode){
+  const composition = hardMode ? EVENT_DECK_HARD : EVENT_DECK_NORMAL;
   const cards = [];
-  for(let i=0;i<8;i++) cards.push('DECOHERENCE');
-  for(let i=0;i<5;i++) cards.push('QEC');
-  for(let i=0;i<6;i++) cards.push('EXTRA_RAM');
-  for(let i=0;i<4;i++) cards.push('COSMIC_RAY');
-  for(let i=0;i<1;i++) cards.push('BLUE_SCREEN');
+  for(const type in composition){
+    for(let i=0;i<composition[type];i++) cards.push(type);
+  }
   return shuffle(cards);
 }
 
@@ -67,7 +97,8 @@ const EVENT_TEXT = {
   COSMIC_RAY: { title: 'Cosmic Ray', desc: 'You must measure on your next turn.' },
   BLUE_SCREEN: { title: 'Blue Screen', desc: 'Your opponent\u2019s entire deck is reshuffled from scratch (it keeps any Extra RAM).' },
   QEC: { title: 'Quantum Error Correction', desc: 'You gain a shield that cancels the next Decoherence drawn.' },
-  EXTRA_RAM: { title: 'Extra RAM', desc: 'Your opponent can now flip one additional card per turn.' }
+  EXTRA_RAM: { title: 'Extra RAM', desc: 'Your opponent can now flip one additional card per turn.' },
+  NEUTRAL: { title: 'Neutral', desc: 'Nothing happens this round.' }
 };
 
 /* ---------- Utilities ---------- */
@@ -122,9 +153,9 @@ function newGame(config){
       lastRevealedIndex: -1,
       pendingReshuffle: false,
       points: 0,
-      ram: 0
+      ram: 0 // from Extra RAM event cards — discarded when a gem is scored
     },
-    eventDeck: config.eventsEnabled ? freshEventDeck() : [],
+    eventDeck: config.eventsEnabled ? freshEventDeck(config.hardMode) : [],
     phase: 'classical', // classical -> quantum -> event -> classical... ('resolving' is transient, disables input)
     over: false,
     log: []
@@ -272,7 +303,7 @@ function proceedAfterQuantumTurn(){
 /* ---------- Turn logic: events ---------- */
 
 function runEvent(){
-  if(game.eventDeck.length === 0) game.eventDeck = freshEventDeck();
+  if(game.eventDeck.length === 0) game.eventDeck = freshEventDeck(game.config.hardMode);
   const card = game.eventDeck.shift();
   const info = EVENT_TEXT[card];
   let title = info.title;
@@ -315,6 +346,9 @@ function runEvent(){
     case 'EXTRA_RAM':
       c.ram++;
       SFX.extraRam();
+      break;
+    case 'NEUTRAL':
+      SFX.neutral();
       break;
   }
 
@@ -391,11 +425,11 @@ function mixColor(hexA, hexB, t){
   return `rgb(${r},${g},${bl})`;
 }
 function probToColor(p){
-  // washed-out blue/white at low probability -> pure quantum blue at high probability
-  return mixColor('#e9f5fa', '#005D7E', Math.min(p, 1));
+  // washed-out red/white at low probability -> pure quantum red at high probability
+  return mixColor('#fbe9ec', '#96172E', Math.min(p, 1));
 }
 function textColorFor(p){
-  return p > 0.55 ? '#eafbff' : '#04141c';
+  return p > 0.55 ? '#fdf1f2' : '#04141c';
 }
 
 function renderQuantumBoard(){
@@ -577,12 +611,14 @@ function showScreen(id){
 }
 
 function readConfigFromSetup(){
+  const mode = document.querySelector('#game-mode-group .pill.active').dataset.value;
   return {
     gemTarget: parseInt(document.getElementById('gem-target').value, 10),
     deckSize: parseInt(document.querySelector('#deck-size-group .pill.active').dataset.value, 10),
     probMode: document.querySelector('#prob-mode-group .pill.active').dataset.value,
     showProb: document.getElementById('show-prob-toggle').classList.contains('active'),
-    eventsEnabled: document.getElementById('events-toggle').classList.contains('active')
+    eventsEnabled: mode !== 'no-events',
+    hardMode: mode === 'hard'
   };
 }
 
@@ -597,6 +633,12 @@ function setSoundEnabled(on){
   muteBtn.setAttribute('aria-label', on ? 'Mute sound' : 'Unmute sound');
   muteBtn.title = on ? 'Mute sound' : 'Unmute sound';
 }
+
+const GAME_MODE_DESCRIPTIONS = {
+  'no-events': 'See what the quantum advantage is in a perfect world.',
+  'normal': 'Deal with decoherence and other challenges for quantum computers.',
+  'hard': 'Quantum error correction is harder to come by, and RAM is cheap.'
+};
 
 function wireSetupScreen(){
   document.querySelectorAll('.step-btn').forEach(btn=>{
@@ -620,7 +662,14 @@ function wireSetupScreen(){
       p.classList.add('active');
     });
   });
-  ['show-prob-toggle','events-toggle','sound-toggle'].forEach(id=>{
+  document.querySelectorAll('#game-mode-group .pill').forEach(p=>{
+    p.addEventListener('click', ()=>{
+      document.querySelectorAll('#game-mode-group .pill').forEach(x=>x.classList.remove('active'));
+      p.classList.add('active');
+      document.getElementById('game-mode-note').textContent = GAME_MODE_DESCRIPTIONS[p.dataset.value];
+    });
+  });
+  ['show-prob-toggle','sound-toggle'].forEach(id=>{
     const el = document.getElementById(id);
     el.addEventListener('click', ()=>{
       el.classList.toggle('active');
@@ -636,6 +685,10 @@ function wireSetupScreen(){
     const config = readConfigFromSetup();
     document.getElementById('deck-size-label').textContent = `N = ${config.deckSize}`;
     document.getElementById('target-label').textContent = `First to ${config.gemTarget}`;
+    const hardLabel = document.getElementById('hard-mode-label');
+    const hardDot = document.getElementById('hard-mode-dot');
+    hardLabel.style.display = config.hardMode ? 'inline' : 'none';
+    hardDot.style.display = config.hardMode ? 'inline' : 'none';
     resetEventPanel();
     newGame(config);
     showScreen('game-screen');
