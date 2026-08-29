@@ -90,7 +90,13 @@ a consistent "discrete tile, no overshoot" board for every size:
   (oscillators + a filtered noise burst) — no binary audio files to host.
   Call `SFX.init()` from a user-gesture handler before any other sound; the
   "Begin search" button already does this.
-- `UW_IQC_RGB_logo.png` — shown on the setup screen and in the game header.
+- `UW_IQC_shield_reverse.png` — the crest mark, shown on the setup screen
+  and in the game header. Cropped from the university's full "black
+  reverse" lockup file down to just the shield (the original file was a
+  2011×369px canvas — mostly an invisible white wordmark and empty
+  margin — which is what caused the oversized/broken layout when used
+  directly). This version already has the correct white-fill/black-line
+  treatment for a dark background, so no CSS color filter is applied to it.
 
 ## Sound
 
