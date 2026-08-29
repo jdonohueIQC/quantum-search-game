@@ -42,6 +42,14 @@
         </div>
 
         <div class="setup-field">
+          <label>Board style</label>
+          <div class="pill-group" id="board-style-group">
+            <button type="button" class="pill active" data-value="tiles">Tiles</button>
+            <button type="button" class="pill" data-value="state">State</button>
+          </div>
+        </div>
+
+        <div class="setup-field" id="prob-mode-field">
           <label>Probability model</label>
           <div class="pill-group" id="prob-mode-group">
             <button type="button" class="pill active" data-value="rounded">Rounded</button>
@@ -50,7 +58,7 @@
         </div>
 
         <div class="setup-field">
-          <label>Show probabilities on tiles</label>
+          <label>Show probabilities</label>
           <div class="toggle-row">
             <span class="toggle-off-label">Hide</span>
             <button type="button" class="switch active" id="show-prob-toggle" role="switch" aria-checked="true"><span class="knob"></span></button>
@@ -77,6 +85,10 @@
         </div>
 
       </div>
+
+      <p class="mode-note" id="board-style-note" style="display:none;">
+        State mode shows one square instead of a tile row. You can keep running the algorithm past its peak — probability follows the real Grover formula and will start dropping again if you overshoot.
+      </p>
 
       <p class="mode-note" id="game-mode-note">
         Deal with decoherence and other challenges for quantum computers.
@@ -143,12 +155,22 @@
 
         <div class="quantum-board" id="quantum-tiles"></div>
 
+        <div class="quantum-state" id="quantum-state" style="display:none;">
+          <div class="state-square" id="state-square">
+            <span class="state-pct" id="state-pct"></span>
+          </div>
+          <div class="state-iteration" id="state-iteration">Iteration 0</div>
+        </div>
+
         <div class="status-slot" id="quantum-status-slot">
           <div class="status-chip qec-shield" id="qec-shield">
             🛡️ Error correction armed <span id="qec-count"></span>
           </div>
           <div class="status-chip cosmic-indicator" id="cosmic-indicator">
             ⚡ Cosmic Ray — must measure this turn
+          </div>
+          <div class="status-chip decoherence-indicator" id="decoherence-indicator">
+            🌀 Decoherence <span id="decoherence-count"></span> — <span id="decoherence-desc"></span>
           </div>
         </div>
 

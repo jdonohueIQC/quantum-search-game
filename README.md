@@ -24,10 +24,45 @@ This is a static site — no build step, no dependencies.
 |---|---|---|
 | Gems to win | 1–10 | 3 |
 | Database size (N) | 4, 12, 30, 100 | 12 |
-| Probability model | Rounded (dice-friendly) / Real Grover formula | Rounded |
-| Show probabilities on tiles | On/Off | On |
+| Board style | Tiles / State | Tiles |
+| Probability model | Rounded (dice-friendly) / Real Grover formula | Rounded (Tiles only — State always uses the real formula) |
+| Show probabilities | On/Off | On |
 | Sound | On/Off | On |
 | Game mode | No events / Normal / Hard | Normal |
+
+## Board style: Tiles vs. State
+
+**Tiles** is everything described above and unchanged: a fixed row of
+discrete, capped checkpoints, ending in a guaranteed-win final tile.
+
+**State** is a new, experimental alternative that models Grover's actual
+overshoot behavior — the quantum board becomes a single square instead of
+a tile row, and there's no capped "final" stage. Each advance is a real
+Grover iteration (`p(k) = sin²((2k+1)·asin(1/√N))`), so you can keep
+advancing past the peak and watch the probability genuinely decline again,
+same as the real algorithm. The classical opponent, its deck, and the
+event deck are all completely unaffected by this toggle.
+
+Because there's no artificial ceiling to protect, **Decoherence behaves
+differently in State mode**. It doesn't disable advancing — that would
+undercut the whole point of letting you explore overshoot — instead it
+lowers an invisible ceiling (one Tiles-board checkpoint per hit) and
+turns any attempt to push past that ceiling into an immediate two-checkpoint
+regression. For N=30's first Decoherence: you can no longer progress past
+the "5/6" checkpoint, and if you push past it anyway, the state snaps back
+to "1/2" rather than advancing. A "🌀 Decoherence ×N" counter (same status-chip
+style as the QEC shield) tracks how many hits have accumulated. QEC still
+works exactly as in Tiles mode — arm a shield, cancel the next Decoherence.
+
+**This is explicitly a first-pass approximation**, not a physically
+rigorous decoherence model — it borrows the Tiles board's checkpoint
+values as convenient reference points rather than modeling anything like
+a continuous loss of coherence. The plan (not yet built) is a Cartesian/
+geometric visualization of the two-dimensional rotation between the
+"wrong answers" state and the "gem" state — similar to Grover's algorithm's
+geometric proof — with the rotation animated on each advance. Once that's
+in place, it should be a much more natural home for a more accurate
+decoherence model than the current checkpoint-borrowing approach.
 
 ## Balance
 

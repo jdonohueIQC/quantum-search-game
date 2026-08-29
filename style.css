@@ -338,6 +338,33 @@ h1{
 .qec-shield{ background: rgba(150,23,46,0.18); color: var(--quantum-bright); border:1px solid var(--quantum); }
 .ram-indicator{ background: rgba(0,93,126,0.16); color: var(--classical-bright); border:1px solid var(--classical); }
 .cosmic-indicator{ background: rgba(242,201,76,0.16); color: var(--gem); border:1px solid var(--gem); }
+.decoherence-indicator{ background: rgba(224,99,122,0.16); color: var(--danger); border:1px solid var(--danger); }
+
+/* ---------- Quantum STATE mode (single square, allows overshoot) ---------- */
+.quantum-state{
+  display:flex; flex-direction:column; align-items:center; gap:10px;
+  margin-bottom: 18px; padding: 10px 0;
+}
+.state-square{
+  width: 150px; height: 150px;
+  border-radius: 14px;
+  display:flex; align-items:center; justify-content:center;
+  border: 2px solid var(--hairline);
+  background: var(--quantum-wash);
+  transition: background .25s ease;
+}
+.state-square svg{ width: 56px; height: 56px; }
+.state-pct{
+  font-family:'IBM Plex Mono', monospace;
+  font-weight: 700;
+  font-size: 30px;
+  color: #04141c;
+}
+.state-iteration{
+  font-family:'IBM Plex Mono', monospace;
+  font-size: 12.5px;
+  color: var(--ink-dim);
+}
 
 /* ---------- Quantum tiles ---------- */
 .quantum-board{

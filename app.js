@@ -137,6 +137,7 @@ let soundOn = true;
 
 function newGame(config){
   const board = buildBoard(config.deckSize, config.probMode);
+  const T = ROUNDED_BOARDS[config.deckSize].length; // shared "final/peak" checkpoint index, used by STATE mode too
   game = {
     config,
     board,
@@ -145,7 +146,10 @@ function newGame(config){
       maxReachable: board.length - 1,
       points: 0,
       qecCharges: 0,
-      forcedMeasure: false
+      forcedMeasure: false,
+      // STATE mode only:
+      k: 0,               // current iteration count (unbounded — allows overshoot)
+      decoherenceCount: 0 // 0 = uncapped; each hit lowers the reachable ceiling by one checkpoint
     },
     classical: {
       deck: freshClassicalDeck(config.deckSize),
@@ -164,7 +168,9 @@ function newGame(config){
   resetMeasureBox();
 }
 
-function finalIndex(){ return game.board.length - 1; }
+function finalIndex(){ return game.board.length - 1; } // TILES mode
+function stateT(){ return ROUNDED_BOARDS[game.config.deckSize].length; } // STATE mode's checkpoint reference
+function isStateMode(){ return game.config.boardMode === 'state'; }
 
 function log(who, text){
   game.log.push({who, text});
@@ -234,6 +240,13 @@ function isQuantumTurn(){
 }
 
 function doAdvance(){
+  if(isStateMode()) doAdvanceState(); else doAdvanceTiles();
+}
+function doMeasure(){
+  if(isStateMode()) doMeasureState(); else doMeasureTiles();
+}
+
+function doAdvanceTiles(){
   if(!isQuantumTurn()) return;
   const q = game.quantum;
   if(q.forcedMeasure) return;
@@ -253,7 +266,7 @@ function doAdvance(){
   setTimeout(proceedAfterQuantumTurn, TIMING.advancePause);
 }
 
-function doMeasure(){
+function doMeasureTiles(){
   if(!isQuantumTurn()) return;
   game.phase = 'resolving';
   updateReadouts();
@@ -278,6 +291,85 @@ function doMeasure(){
     // Any measurement: return to tile 1, clear decoherence, consume QEC, clear cosmic ray.
     q.tileIndex = 0;
     q.maxReachable = finalIndex();
+    if(q.qecCharges > 0) q.qecCharges = 0;
+    q.forcedMeasure = false;
+
+    render();
+    if(checkWin()) return;
+    setTimeout(proceedAfterQuantumTurn, TIMING.measureHold);
+  }, TIMING.measureOpen);
+}
+
+/* ---------- Turn logic: quantum player, STATE mode ----------
+   k is an unbounded iteration counter — no forced "final" stage, so the
+   real Grover probability is free to decline again past its peak
+   (overshoot). Decoherence doesn't disable advancing; instead it lowers
+   an invisible ceiling (capIndex, expressed in the same checkpoint units
+   as the TILES board) and turns any attempt to push past that ceiling
+   into an immediate two-checkpoint regression, per the spec:
+   "won't progress past 5/6, and if they try, they go back to 1/2" for
+   N=30's first Decoherence — i.e. capIndex = T - decoherenceCount, and
+   overshooting it snaps k to max(capIndex - 1, 0). This is a first-pass
+   approximation, flagged for revisiting once the geometric visualization
+   is in place. */
+
+function stateCapIndex(){
+  const q = game.quantum;
+  if(q.decoherenceCount <= 0) return Infinity; // uncapped — full overshoot allowed
+  return Math.max(stateT() - q.decoherenceCount, 0);
+}
+
+function doAdvanceState(){
+  if(!isQuantumTurn()) return;
+  const q = game.quantum;
+  if(q.forcedMeasure) return;
+
+  game.phase = 'resolving';
+  const cap = stateCapIndex();
+  const attempted = q.k + 1;
+
+  if(attempted > cap){
+    const bounceTo = Math.max(cap - 1, 0);
+    if(q.k === bounceTo){
+      log('q', `You push the algorithm further, but Decoherence holds it right where it is.`);
+    } else {
+      q.k = bounceTo;
+      SFX.overshoot();
+      log('q', `You push past what Decoherence allows — the state snaps back to iteration ${q.k}.`);
+    }
+  } else {
+    q.k = attempted;
+    log('q', `You run the algorithm. Iteration ${q.k}.`);
+  }
+  render();
+  setTimeout(proceedAfterQuantumTurn, TIMING.advancePause);
+}
+
+function doMeasureState(){
+  if(!isQuantumTurn()) return;
+  game.phase = 'resolving';
+  updateReadouts();
+  setMeasureBoxState('opening');
+
+  setTimeout(()=>{
+    const q = game.quantum;
+    const p = groverProbability(game.config.deckSize, q.k);
+    const success = Math.random() < p;
+
+    if(success){
+      q.points++;
+      setMeasureBoxState('success');
+      SFX.win();
+      log('q', `You measure… success! (${q.points}/${game.config.gemTarget})`);
+    } else {
+      setMeasureBoxState('fail');
+      SFX.fail();
+      log('q', `You measure… no luck this time.`);
+    }
+
+    // Any measurement: return to iteration 0, clear decoherence, consume QEC, clear cosmic ray.
+    q.k = 0;
+    q.decoherenceCount = 0;
     if(q.qecCharges > 0) q.qecCharges = 0;
     q.forcedMeasure = false;
 
@@ -318,6 +410,16 @@ function runEvent(){
         q.qecCharges--;
         desc = 'Your error correction shield cancels this Decoherence card.';
         SFX.qec();
+      } else if(isStateMode()){
+        q.decoherenceCount++;
+        const cap = stateCapIndex();
+        if(q.k > cap){
+          q.k = Math.max(cap - 1, 0);
+          desc = `You can no longer progress past iteration ${cap} — and the state has already snapped back to iteration ${q.k}.`;
+        } else {
+          desc = `You can no longer progress past iteration ${cap}. Push beyond it and the state will snap back two checkpoints.`;
+        }
+        SFX.decoherence();
       } else if(q.maxReachable > 0){
         q.maxReachable--;
         if(q.tileIndex > q.maxReachable) q.tileIndex = q.maxReachable;
@@ -399,7 +501,7 @@ function endGame(winner){
 
 function render(){
   renderGems();
-  renderQuantumBoard();
+  if(isStateMode()) renderQuantumState(); else renderQuantumBoard();
   renderClassicalDeck();
   renderIndicators();
   updateReadouts();
@@ -459,6 +561,21 @@ function renderQuantumBoard(){
   });
 }
 
+function renderQuantumState(){
+  const q = game.quantum;
+  const N = game.config.deckSize;
+  const p = groverProbability(N, q.k);
+
+  const square = document.getElementById('state-square');
+  square.style.background = probToColor(p);
+
+  const pctEl = document.getElementById('state-pct');
+  pctEl.style.color = textColorFor(p);
+  pctEl.textContent = game.config.showProb ? `${Math.round(p*100)}%` : '';
+
+  document.getElementById('state-iteration').textContent = `Iteration ${q.k}`;
+}
+
 function renderClassicalDeck(){
   const c = game.classical;
   const wrap = document.getElementById('classical-deck');
@@ -499,6 +616,16 @@ function renderIndicators(){
 
   const cosmicEl = document.getElementById('cosmic-indicator');
   cosmicEl.style.visibility = q.forcedMeasure ? 'visible' : 'hidden';
+
+  const decoEl = document.getElementById('decoherence-indicator');
+  if(isStateMode() && q.decoherenceCount > 0){
+    const cap = stateCapIndex();
+    decoEl.style.visibility = 'visible';
+    document.getElementById('decoherence-count').textContent = `×${q.decoherenceCount}`;
+    document.getElementById('decoherence-desc').textContent = `can't progress past iteration ${cap}`;
+  } else {
+    decoEl.style.visibility = 'hidden';
+  }
 
   const ramEl = document.getElementById('ram-indicator');
   if(c.ram > 0){
@@ -566,6 +693,16 @@ function updateReadouts(){
   measureBtn.disabled = !myTurn;
   measureBtn.classList.toggle('forced', myTurn && q.forcedMeasure);
 
+  if(isStateMode()) updateReadoutsState(myTurn); else updateReadoutsTiles(myTurn);
+}
+
+function updateReadoutsTiles(myTurn){
+  const q = game.quantum;
+  const qEl = document.getElementById('quantum-readout');
+  const advanceBtn = document.getElementById('advance-btn');
+  const measureSub = document.getElementById('measure-sub');
+  const advanceSub = advanceBtn.querySelector('.action-sub');
+
   if(!myTurn){
     advanceBtn.disabled = true;
     advanceSub.textContent = 'Move one tile right';
@@ -604,6 +741,50 @@ function updateReadouts(){
   }
 }
 
+function updateReadoutsState(myTurn){
+  const q = game.quantum;
+  const qEl = document.getElementById('quantum-readout');
+  const advanceBtn = document.getElementById('advance-btn');
+  const measureSub = document.getElementById('measure-sub');
+  const advanceSub = advanceBtn.querySelector('.action-sub');
+  const N = game.config.deckSize;
+  const p = groverProbability(N, q.k);
+  const cap = stateCapIndex();
+  const willOvershoot = (q.k + 1) > cap;
+
+  if(!myTurn){
+    advanceBtn.disabled = true;
+    advanceSub.textContent = 'Move to the next iteration';
+  } else if(q.forcedMeasure){
+    advanceBtn.disabled = true;
+    advanceSub.textContent = 'Unavailable — Cosmic Ray forces a measurement';
+  } else if(willOvershoot){
+    advanceBtn.disabled = false;
+    advanceSub.textContent = 'Warning — Decoherence will snap you back';
+  } else {
+    advanceBtn.disabled = false;
+    advanceSub.textContent = 'Move to the next iteration';
+  }
+
+  if(game.config.showProb){
+    measureSub.textContent = `Resolve at ${Math.round(p*100)}%`;
+  } else {
+    measureSub.textContent = 'Try your current odds';
+  }
+
+  if(!myTurn){
+    qEl.textContent = game.phase === 'classical' ? 'Waiting for your opponent to draw…' : 'Resolving event…';
+  } else if(q.forcedMeasure){
+    qEl.innerHTML = `<span class="hl">Cosmic ray!</span> You must measure this turn.`;
+  } else if(willOvershoot){
+    qEl.innerHTML = `<span class="hl">Careful</span> — Decoherence has capped your progress. Advancing further will snap you back.`;
+  } else if(q.k > 0 && p < groverProbability(N, q.k - 1)){
+    qEl.textContent = "You've overshot the peak — probability is dropping again.";
+  } else {
+    qEl.textContent = 'Advance the algorithm, or measure to try your luck.';
+  }
+}
+
 /* ---------- Screens & setup ---------- */
 
 function showScreen(id){
@@ -616,6 +797,7 @@ function readConfigFromSetup(){
   return {
     gemTarget: parseInt(document.getElementById('gem-target').value, 10),
     deckSize: parseInt(document.querySelector('#deck-size-group .pill.active').dataset.value, 10),
+    boardMode: document.querySelector('#board-style-group .pill.active').dataset.value,
     probMode: document.querySelector('#prob-mode-group .pill.active').dataset.value,
     showProb: document.getElementById('show-prob-toggle').classList.contains('active'),
     eventsEnabled: mode !== 'no-events',
@@ -658,6 +840,15 @@ function wireSetupScreen(){
       p.classList.add('active');
     });
   });
+  document.querySelectorAll('#board-style-group .pill').forEach(p=>{
+    p.addEventListener('click', ()=>{
+      document.querySelectorAll('#board-style-group .pill').forEach(x=>x.classList.remove('active'));
+      p.classList.add('active');
+      const isState = p.dataset.value === 'state';
+      document.getElementById('prob-mode-field').style.display = isState ? 'none' : '';
+      document.getElementById('board-style-note').style.display = isState ? 'block' : 'none';
+    });
+  });
   document.querySelectorAll('#prob-mode-group .pill').forEach(p=>{
     p.addEventListener('click', ()=>{
       document.querySelectorAll('#prob-mode-group .pill').forEach(x=>x.classList.remove('active'));
@@ -691,6 +882,8 @@ function wireSetupScreen(){
     const modeText = { 'no-events': 'No Events', 'normal': 'Normal', 'hard': 'Hard Mode' };
     modeLabel.textContent = modeText[config.mode];
     modeLabel.className = `game-mode-label mode-${config.mode}`;
+    document.getElementById('quantum-tiles').style.display = config.boardMode === 'state' ? 'none' : '';
+    document.getElementById('quantum-state').style.display = config.boardMode === 'state' ? 'flex' : 'none';
     resetEventPanel();
     newGame(config);
     showScreen('game-screen');
