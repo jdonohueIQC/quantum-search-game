@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hadamard's Hoard — A Quantum Search Game</title>
+<link rel="stylesheet" href="style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ===================== SETUP SCREEN ===================== -->
+  <section id="setup-screen" class="screen active">
+    <div class="setup-card">
+      <div class="eyebrow">Institute for Quantum Computing · Outreach</div>
+      <h1>Hadamard's&nbsp;Hoard</h1>
+      <p class="tagline">Race a classical search against Grover's algorithm. You play the quantum machine — a dealer plays the deck.</p>
+
+      <div class="setup-grid">
+
+        <div class="setup-field">
+          <label for="gem-target">Gems to win</label>
+          <div class="stepper">
+            <button type="button" class="step-btn" data-step="-1" data-target="gem-target">−</button>
+            <input type="number" id="gem-target" min="1" max="10" value="3">
+            <button type="button" class="step-btn" data-step="1" data-target="gem-target">+</button>
+          </div>
+        </div>
+
+        <div class="setup-field">
+          <label>Database size</label>
+          <div class="pill-group" id="deck-size-group">
+            <button type="button" class="pill" data-value="4">4</button>
+            <button type="button" class="pill active" data-value="12">12</button>
+            <button type="button" class="pill" data-value="30">30</button>
+            <button type="button" class="pill" data-value="100">100</button>
+          </div>
+        </div>
+
+        <div class="setup-field">
+          <label>Probability model</label>
+          <div class="pill-group" id="prob-mode-group">
+            <button type="button" class="pill active" data-value="rounded">Rounded (dice-friendly)</button>
+            <button type="button" class="pill" data-value="real">Real Grover formula</button>
+          </div>
+        </div>
+
+        <div class="setup-field">
+          <label>Show probabilities on tiles</label>
+          <div class="toggle-row">
+            <span class="toggle-off-label">Hide</span>
+            <button type="button" class="switch active" id="show-prob-toggle" role="switch" aria-checked="true"><span class="knob"></span></button>
+            <span class="toggle-on-label">Show</span>
+          </div>
+        </div>
+
+        <div class="setup-field">
+          <label>Event cards</label>
+          <div class="toggle-row">
+            <span class="toggle-off-label">Off</span>
+            <button type="button" class="switch active" id="events-toggle" role="switch" aria-checked="true"><span class="knob"></span></button>
+            <span class="toggle-on-label">On</span>
+          </div>
+        </div>
+
+      </div>
+
+      <button id="start-btn" class="primary-btn">Begin search</button>
+
+      <details class="rules-disclosure">
+        <summary>How a turn works</summary>
+        <ol>
+          <li>The <strong>classical dealer</strong> flips one card from its deck (more, if it holds Extra RAM). A gem card scores a point and reshuffles the whole deck.</li>
+          <li><strong>You</strong> either <em>advance the algorithm</em> (move one tile right) or <em>measure</em> (resolve the odds on your current tile). Measuring always returns the arrow to tile 1.</li>
+          <li>If events are on, a card flips and may affect either side — Decoherence blocks a tile, Cosmic Ray forces your next measurement, Extra RAM speeds up the dealer, Blue Screen resets its deck, Quantum Error Correction shields you from the next Decoherence.</li>
+          <li>First to the gem target wins.</li>
+        </ol>
+      </details>
+    </div>
+  </section>
+
+  <!-- ===================== GAME SCREEN ===================== -->
+  <section id="game-screen" class="screen">
+
+    <header class="game-header">
+      <div class="game-title">Hadamard's Hoard</div>
+      <div class="game-meta">
+        <span id="deck-size-label">N = 12</span>
+        <span class="meta-dot">·</span>
+        <span id="target-label">First to 3</span>
+      </div>
+      <button id="new-game-btn" class="ghost-btn">New game</button>
+    </header>
+
+    <div class="event-banner" id="event-banner"></div>
+
+    <main class="board-layout">
+
+      <!-- QUANTUM PLAYER (LEFT) -->
+      <section class="player-panel quantum-panel">
+        <div class="panel-head">
+          <h2>You <span class="role-tag quantum-tag">Quantum Search</span></h2>
+          <div class="gem-tally" id="quantum-gems"></div>
+        </div>
+
+        <div class="qec-shield" id="qec-shield" style="display:none;">
+          🛡️ Error correction armed <span id="qec-count"></span>
+        </div>
+
+        <div class="quantum-board" id="quantum-tiles"></div>
+
+        <div class="turn-readout" id="quantum-readout">Waiting for the dealer to draw…</div>
+
+        <div class="action-row">
+          <button id="advance-btn" class="action-btn advance-btn">
+            <span class="action-title">Run the algorithm</span>
+            <span class="action-sub">Move one tile right</span>
+          </button>
+          <button id="measure-btn" class="action-btn measure-btn">
+            <span class="action-title">Measure</span>
+            <span class="action-sub" id="measure-sub">Try your current odds</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- CLASSICAL PLAYER (RIGHT) -->
+      <section class="player-panel classical-panel">
+        <div class="panel-head">
+          <h2>Dealer <span class="role-tag classical-tag">Classical Search</span></h2>
+          <div class="gem-tally" id="classical-gems"></div>
+        </div>
+
+        <div class="ram-indicator" id="ram-indicator" style="display:none;">
+          💾 Extra RAM ×<span id="ram-count"></span> — <span id="ram-desc"></span>
+        </div>
+
+        <div class="classical-deck" id="classical-deck"></div>
+
+        <div class="turn-readout" id="classical-readout">Ready to search…</div>
+      </section>
+
+    </main>
+
+    <div class="log-panel">
+      <div class="log-head">Game log</div>
+      <div id="log-list" class="log-list"></div>
+    </div>
+
+  </section>
+
+  <!-- ===================== WIN SCREEN ===================== -->
+  <section id="win-screen" class="screen">
+    <div class="win-card">
+      <div class="win-icon" id="win-icon">💎</div>
+      <h1 id="win-title">You win!</h1>
+      <p id="win-sub">The quantum search found its target first.</p>
+      <button id="play-again-btn" class="primary-btn">Play again</button>
+    </div>
+  </section>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
