@@ -15,7 +15,9 @@
   <!-- ===================== SETUP SCREEN ===================== -->
   <section id="setup-screen" class="screen active">
     <div class="setup-card">
-      <img class="setup-logo" src="UW_IQC_logo_reverse.png" alt="University of Waterloo — Institute for Quantum Computing">
+      <a class="logo-link" href="https://uwaterloo.ca/institute-for-quantum-computing/outreach" target="_blank" rel="noopener">
+        <img class="setup-logo" src="UW_IQC_logo_reverse.png" alt="University of Waterloo — Institute for Quantum Computing">
+      </a>
       <div class="eyebrow">Institute for Quantum Computing · Outreach</div>
       <h1>Hadamard's&nbsp;Hoard</h1>
       <p class="tagline">Race a classical search against Grover's algorithm. You play the quantum machine — an opponent plays the deck.</p>
@@ -41,12 +43,13 @@
           </div>
         </div>
 
-        <div class="setup-field">
+        <div class="setup-field setup-field-wide">
           <label>Board style</label>
           <div class="pill-group" id="board-style-group">
             <button type="button" class="pill active" data-value="tiles">Board Game</button>
             <button type="button" class="pill" data-value="state">State Simulator</button>
           </div>
+          <p class="mode-note mode-note-inline" id="board-style-note">Mimics board-game mechanics in a race-to-the-finish.</p>
         </div>
 
         <div class="setup-field" id="prob-mode-field">
@@ -57,12 +60,13 @@
           </div>
         </div>
 
-        <div class="setup-field" id="decoherence-model-field" style="display:none;">
+        <div class="setup-field setup-field-wide" id="decoherence-model-field" style="display:none;">
           <label>Decoherence model</label>
           <div class="pill-group" id="decoherence-model-group">
             <button type="button" class="pill" data-value="fixed">Fixed</button>
             <button type="button" class="pill active" data-value="variable">Variable</button>
           </div>
+          <p class="mode-note mode-note-inline" id="decoherence-model-note">The amount of decoherence varies with the database size to preserve the gameplay experience.</p>
         </div>
 
         <div class="setup-field">
@@ -93,10 +97,6 @@
         </div>
 
       </div>
-
-      <p class="mode-note" id="board-style-note" style="display:none;">
-        State Simulator shows the actual quantum state as a rotating vector, instead of a tile row. You can keep rotating past the peak — probability genuinely drops again if you overshoot, and Decoherence damages the state itself rather than blocking a tile.
-      </p>
 
       <p class="mode-note" id="game-mode-note">
         Deal with decoherence and other challenges for quantum computers.
@@ -137,7 +137,9 @@
   <section id="game-screen" class="screen">
 
     <header class="game-header">
-      <img class="header-logo" src="UW_IQC_logo_reverse.png" alt="University of Waterloo — Institute for Quantum Computing">
+      <a class="logo-link" href="https://uwaterloo.ca/institute-for-quantum-computing/outreach" target="_blank" rel="noopener">
+        <img class="header-logo" src="UW_IQC_logo_reverse.png" alt="University of Waterloo — Institute for Quantum Computing">
+      </a>
       <div class="game-title">Hadamard's Hoard</div>
       <div class="game-meta">
         <span id="deck-size-label">N = 12</span>

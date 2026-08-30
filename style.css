@@ -63,6 +63,12 @@ body{
   padding: 40px 36px;
 }
 
+.logo-link{
+  display: inline-block;
+  line-height: 0;
+  text-decoration: none;
+  flex-shrink: 0;
+}
 .setup-logo{
   display:block;
   height: 40px;
@@ -114,6 +120,9 @@ h1{
   padding: 10px 12px;
   margin: -12px 0 20px 0;
   line-height: 1.5;
+}
+.mode-note-inline{
+  margin: 10px 0 0 0;
 }
 
 .setup-field label{

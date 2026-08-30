@@ -865,6 +865,16 @@ const GAME_MODE_DESCRIPTIONS = {
   'hard': 'Quantum error correction is harder to come by, and RAM is cheap.'
 };
 
+const BOARD_STYLE_DESCRIPTIONS = {
+  'tiles': 'Mimics board-game mechanics in a race-to-the-finish.',
+  'state': 'Simulates the quantum state rotations and decoherence mechanisms in real implementations of Grover\u2019s algorithm.'
+};
+
+const DECOHERENCE_MODEL_DESCRIPTIONS = {
+  'fixed': 'Decoherence is an amplitude-damping channel that shrinks the amplitude by 1/5 on each instance.',
+  'variable': 'The amount of decoherence varies with the database size to preserve the gameplay experience.'
+};
+
 function wireSetupScreen(){
   document.querySelectorAll('.step-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
@@ -887,7 +897,7 @@ function wireSetupScreen(){
       p.classList.add('active');
       const isState = p.dataset.value === 'state';
       document.getElementById('prob-mode-field').style.display = isState ? 'none' : '';
-      document.getElementById('board-style-note').style.display = isState ? 'block' : 'none';
+      document.getElementById('board-style-note').textContent = BOARD_STYLE_DESCRIPTIONS[p.dataset.value];
       document.getElementById('decoherence-model-field').style.display = isState ? '' : 'none';
     });
   });
@@ -901,6 +911,7 @@ function wireSetupScreen(){
     p.addEventListener('click', ()=>{
       document.querySelectorAll('#decoherence-model-group .pill').forEach(x=>x.classList.remove('active'));
       p.classList.add('active');
+      document.getElementById('decoherence-model-note').textContent = DECOHERENCE_MODEL_DESCRIPTIONS[p.dataset.value];
     });
   });
   document.querySelectorAll('#game-mode-group .pill').forEach(p=>{
