@@ -44,8 +44,8 @@
         <div class="setup-field">
           <label>Board style</label>
           <div class="pill-group" id="board-style-group">
-            <button type="button" class="pill active" data-value="tiles">Tiles</button>
-            <button type="button" class="pill" data-value="state">State</button>
+            <button type="button" class="pill active" data-value="tiles">Board Game</button>
+            <button type="button" class="pill" data-value="state">State Simulator</button>
           </div>
         </div>
 
@@ -87,7 +87,7 @@
       </div>
 
       <p class="mode-note" id="board-style-note" style="display:none;">
-        State mode shows one square instead of a tile row. You can keep running the algorithm past its peak — probability follows the real Grover formula and will start dropping again if you overshoot.
+        State Simulator shows the actual quantum state as a rotating vector, instead of a tile row. You can keep rotating past the peak — probability genuinely drops again if you overshoot, and Decoherence damages the state itself rather than blocking a tile.
       </p>
 
       <p class="mode-note" id="game-mode-note">
@@ -156,8 +156,37 @@
         <div class="quantum-board" id="quantum-tiles"></div>
 
         <div class="quantum-state" id="quantum-state" style="display:none;">
-          <div class="state-square" id="state-square">
-            <span class="state-pct" id="state-pct"></span>
+          <div class="state-boxes">
+            <div class="state-square" id="state-square">
+              <span class="state-pct" id="state-pct"></span>
+            </div>
+
+            <div class="state-plot-box">
+              <svg id="state-plot" viewBox="-140 -140 280 280" width="150" height="150">
+                <circle class="plot-lost" cx="0" cy="0" r="80"/>
+                <circle class="plot-mask" id="plot-mask" cx="0" cy="0" r="80"/>
+                <circle class="plot-shield" id="plot-shield" cx="0" cy="0" r="84"/>
+                <circle class="plot-unit-outline" id="plot-unit-outline" cx="0" cy="0" r="80"/>
+
+                <line class="plot-axis" x1="-92" y1="0" x2="88" y2="0"/>
+                <polygon class="plot-arrow" points="92,0 80,-7 80,7"/>
+                <line class="plot-axis" x1="0" y1="92" x2="0" y2="-88"/>
+                <polygon class="plot-arrow" points="0,-92 -7,-80 7,-80"/>
+
+                <text class="plot-label" x="96" y="6">|</text>
+                <svg x="100" y="-8" width="17" height="17" viewBox="0 0 24 24"><line x1="4" y1="4" x2="20" y2="20" stroke="#8b93a7" stroke-width="4.5" stroke-linecap="round"/><line x1="20" y1="4" x2="4" y2="20" stroke="#8b93a7" stroke-width="4.5" stroke-linecap="round"/></svg>
+                <text class="plot-label" x="120" y="6">⟩</text>
+
+                <text class="plot-label" x="-10" y="-98">|</text>
+                <svg x="-2" y="-112" width="17" height="17" viewBox="0 0 24 24"><polygon points="12,2 22,9 12,22 2,9" fill="#f2c94c"/></svg>
+                <text class="plot-label" x="10" y="-98">⟩</text>
+
+                <g id="plot-vector-group">
+                  <line id="plot-vector" class="plot-vector" x1="0" y1="0" x2="80" y2="0"/>
+                  <circle id="plot-vector-tip" class="plot-vector-tip" cx="80" cy="0" r="6"/>
+                </g>
+              </svg>
+            </div>
           </div>
           <div class="state-iteration" id="state-iteration">Iteration 0</div>
         </div>

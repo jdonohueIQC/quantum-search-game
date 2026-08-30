@@ -30,39 +30,71 @@ This is a static site — no build step, no dependencies.
 | Sound | On/Off | On |
 | Game mode | No events / Normal / Hard | Normal |
 
-## Board style: Tiles vs. State
+## Board style: Board Game vs. State Simulator
 
-**Tiles** is everything described above and unchanged: a fixed row of
-discrete, capped checkpoints, ending in a guaranteed-win final tile.
+**Board Game** is everything described above and unchanged: a fixed row
+of discrete, capped checkpoints, ending in a guaranteed-win final tile.
 
-**State** is a new, experimental alternative that models Grover's actual
-overshoot behavior — the quantum board becomes a single square instead of
-a tile row, and there's no capped "final" stage. Each advance is a real
-Grover iteration (`p(k) = sin²((2k+1)·asin(1/√N))`), so you can keep
-advancing past the peak and watch the probability genuinely decline again,
-same as the real algorithm. The classical opponent, its deck, and the
-event deck are all completely unaffected by this toggle.
+**State Simulator** shows the actual quantum state as a rotating 2D
+vector — closer to the geometric proof of Grover's algorithm — rather
+than a row of tiles. The classical opponent, its deck, and the event deck
+are all completely unaffected by this toggle.
 
-Because there's no artificial ceiling to protect, **Decoherence behaves
-differently in State mode**. It doesn't disable advancing — that would
-undercut the whole point of letting you explore overshoot — instead it
-lowers an invisible ceiling (one Tiles-board checkpoint per hit) and
-turns any attempt to push past that ceiling into an immediate two-checkpoint
-regression. For N=30's first Decoherence: you can no longer progress past
-the "5/6" checkpoint, and if you push past it anyway, the state snaps back
-to "1/2" rather than advancing. A "🌀 Decoherence ×N" counter (same status-chip
-style as the QEC shield) tracks how many hits have accumulated. QEC still
-works exactly as in Tiles mode — arm a shield, cancel the next Decoherence.
+Two same-sized boxes sit side by side: the probability square (as
+before, same color gradient) and a new Cartesian plot. The plot draws
+the unit circle with the Y-axis labeled |GEM⟩ and the X-axis labeled |X⟩
+(no tick marks, per spec), and a vector starting at angle θ from the
+X-axis, where `sin(θ) = 1/√N`. Each "run the algorithm" click rotates the
+vector by `2θ` counter-clockwise (`φ = (2k+1)θ` after k iterations), and
+the measurement probability is `sin²(φ)` — exactly Grover's formula, with
+no artificial ceiling, so you can keep rotating straight through the peak
+and watch probability genuinely decline again. On a measurement, the
+vector visibly collapses onto |GEM⟩ (success, gold) or |X⟩ (failure,
+red) at full length before the whole state resets to its starting
+position for the next cycle.
 
-**This is explicitly a first-pass approximation**, not a physically
-rigorous decoherence model — it borrows the Tiles board's checkpoint
-values as convenient reference points rather than modeling anything like
-a continuous loss of coherence. The plan (not yet built) is a Cartesian/
-geometric visualization of the two-dimensional rotation between the
-"wrong answers" state and the "gem" state — similar to Grover's algorithm's
-geometric proof — with the rotation animated on each advance. Once that's
-in place, it should be a much more natural home for a more accurate
-decoherence model than the current checkpoint-borrowing approach.
+**Decoherence** now damages the *state* rather than blocking a tile —
+a more physical model, worked out and confirmed in conversation rather
+than guessed at:
+
+- Each uncancelled Decoherence hit multiplies a radius factor `r` by
+  `3/4` (so `r = 0.75^d` after `d` hits) — visualized as the unit circle
+  physically shrinking, with the space it gives up filled in solid red
+  (the "lost" shell). The vector's own length shrinks by the same factor,
+  so it's drawn at `r · sin(φ)` / `r · cos(φ)` rather than unit length.
+- The measured probability blends the ordinary rotation-only probability
+  with a uniform random guess, weighted by `r²`: `P = r²·sin²(φ) + (1−r²)/N`.
+  This is the only formula consistent with two hard requirements: `r → 0`
+  must give exactly `1/N` (the maximally-mixed state — a full identity
+  density matrix has a uniform `1/N` chance of matching on measurement),
+  and probability must relate to the drawn radius the way it relates to
+  amplitude in general (i.e. via a square), which is what makes shrinking
+  the circle an amplitude-damping-style operation rather than an
+  arbitrary visual effect.
+  `r` never reaches exactly zero, so a completely "identity" state is
+  only approached in the limit, never hit outright — same as physical
+  decoherence.
+- A "🌀 Decoherence ×N" counter (same status-chip style as the QEC
+  shield, and same TILES-mode chip element, reused) shows the current
+  radius as a percentage.
+- **QEC still works exactly the same as in Board Game mode** — arm a
+  shield, cancel the next Decoherence outright (the radius doesn't
+  shrink further that time) — visualized as a dashed blue ring around
+  the current circle boundary while armed.
+- Rotation itself (`φ`, and therefore overshoot) is completely
+  unaffected by Decoherence — only the radius/weighting changes. That's
+  what makes over-rotating still meaningful even under heavy
+  decoherence, per the original design goal.
+- Any measurement (success or fail) fully restores the state: iteration
+  back to 0, circle back to full radius, QEC/Cosmic Ray cleared — same
+  reset rule as everywhere else in the game.
+
+If you'd rather use a linear model instead (each hit loses a fixed
+fraction of *excess* probability over `1/N`, capped at zero after a fixed
+number of hits, no radius-squaring) that's a straightforward swap inside
+`stateProbability()` in `app.js` — the rest of the rendering code only
+consumes `{ p, phi, radius }` from that one function, so changing the
+formula there is enough.
 
 ## Balance
 

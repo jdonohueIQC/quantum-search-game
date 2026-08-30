@@ -133,11 +133,6 @@ const SFX = (function(){
     // A single soft, unremarkable blip — Neutral (nothing happens).
     neutral(){
       tone(440, 0, 0.08, 'sine', 0.06);
-    },
-
-    // Sharp downward snap — STATE mode overshoot bounce-back.
-    overshoot(){
-      sweep(700, 220, 0, 0.18, 'triangle', 0.13);
     }
   };
 })();

@@ -33,6 +33,23 @@ function groverProbability(N, k){
   return Math.pow(Math.sin((2*k+1)*theta), 2);
 }
 
+/* STATE mode's decoherence model: each hit shrinks a "radius" (amplitude)
+   multiplicatively by 3/4, never reaching exactly zero. The measured
+   probability blends the ordinary (rotation-only) Grover probability
+   with a uniform 1/N guess, weighted by radius² — consistent with a
+   radius of 0 being exactly the maximally-mixed state (identity/N).
+   theta and the rotation angle phi are unaffected by decoherence, which
+   is what lets overshoot keep happening even under heavy decoherence. */
+function stateProbability(N, k, decoherenceCount){
+  const theta = Math.asin(1/Math.sqrt(N));
+  const phi = (2*k+1)*theta;
+  const pureP = Math.pow(Math.sin(phi), 2);
+  const radius = Math.pow(0.75, decoherenceCount); // amplitude-like factor
+  const w = radius*radius;                          // probability-like weight
+  const p = w*pureP + (1-w)/N;
+  return { p, phi, radius };
+}
+
 function buildBoard(N, mode){
   const roundedCount = ROUNDED_BOARDS[N].length;
   const tiles = [];
@@ -149,7 +166,7 @@ function newGame(config){
       forcedMeasure: false,
       // STATE mode only:
       k: 0,               // current iteration count (unbounded — allows overshoot)
-      decoherenceCount: 0 // 0 = uncapped; each hit lowers the reachable ceiling by one checkpoint
+      decoherenceCount: 0 // STATE mode only: number of uncancelled Decoherence hits (shrinks the circle by 3/4 each time)
     },
     classical: {
       deck: freshClassicalDeck(config.deckSize),
@@ -169,7 +186,6 @@ function newGame(config){
 }
 
 function finalIndex(){ return game.board.length - 1; } // TILES mode
-function stateT(){ return ROUNDED_BOARDS[game.config.deckSize].length; } // STATE mode's checkpoint reference
 function isStateMode(){ return game.config.boardMode === 'state'; }
 
 function log(who, text){
@@ -301,23 +317,12 @@ function doMeasureTiles(){
 }
 
 /* ---------- Turn logic: quantum player, STATE mode ----------
-   k is an unbounded iteration counter — no forced "final" stage, so the
-   real Grover probability is free to decline again past its peak
-   (overshoot). Decoherence doesn't disable advancing; instead it lowers
-   an invisible ceiling (capIndex, expressed in the same checkpoint units
-   as the TILES board) and turns any attempt to push past that ceiling
-   into an immediate two-checkpoint regression, per the spec:
-   "won't progress past 5/6, and if they try, they go back to 1/2" for
-   N=30's first Decoherence — i.e. capIndex = T - decoherenceCount, and
-   overshooting it snaps k to max(capIndex - 1, 0). This is a first-pass
-   approximation, flagged for revisiting once the geometric visualization
-   is in place. */
-
-function stateCapIndex(){
-  const q = game.quantum;
-  if(q.decoherenceCount <= 0) return Infinity; // uncapped — full overshoot allowed
-  return Math.max(stateT() - q.decoherenceCount, 0);
-}
+   k is an unbounded iteration counter — no forced "final" stage and no
+   cap on advancing, so the real Grover probability is free to decline
+   again past its peak (overshoot). Decoherence no longer touches k or
+   the rotation angle at all; it only shrinks the state's "radius" (see
+   stateProbability), which is a more physical model than capping tiles —
+   see README.md "Balance" / "Board style" for the full rationale. */
 
 function doAdvanceState(){
   if(!isQuantumTurn()) return;
@@ -325,22 +330,8 @@ function doAdvanceState(){
   if(q.forcedMeasure) return;
 
   game.phase = 'resolving';
-  const cap = stateCapIndex();
-  const attempted = q.k + 1;
-
-  if(attempted > cap){
-    const bounceTo = Math.max(cap - 1, 0);
-    if(q.k === bounceTo){
-      log('q', `You push the algorithm further, but Decoherence holds it right where it is.`);
-    } else {
-      q.k = bounceTo;
-      SFX.overshoot();
-      log('q', `You push past what Decoherence allows — the state snaps back to iteration ${q.k}.`);
-    }
-  } else {
-    q.k = attempted;
-    log('q', `You run the algorithm. Iteration ${q.k}.`);
-  }
+  q.k++;
+  log('q', `You run the algorithm. Iteration ${q.k}.`);
   render();
   setTimeout(proceedAfterQuantumTurn, TIMING.advancePause);
 }
@@ -353,7 +344,8 @@ function doMeasureState(){
 
   setTimeout(()=>{
     const q = game.quantum;
-    const p = groverProbability(game.config.deckSize, q.k);
+    const N = game.config.deckSize;
+    const { p } = stateProbability(N, q.k, q.decoherenceCount);
     const success = Math.random() < p;
 
     if(success){
@@ -367,15 +359,22 @@ function doMeasureState(){
       log('q', `You measure… no luck this time.`);
     }
 
-    // Any measurement: return to iteration 0, clear decoherence, consume QEC, clear cosmic ray.
-    q.k = 0;
-    q.decoherenceCount = 0;
-    if(q.qecCharges > 0) q.qecCharges = 0;
-    q.forcedMeasure = false;
+    // Show the vector collapsing onto |GEM⟩ or |X⟩ at full radius immediately,
+    // before resetting the underlying state for the next cycle.
+    renderPlotCollapse(success);
+    renderGems();
 
-    render();
     if(checkWin()) return;
-    setTimeout(proceedAfterQuantumTurn, TIMING.measureHold);
+    setTimeout(()=>{
+      // Any measurement fully restores the original state: iteration 0,
+      // full-size circle, QEC and Cosmic Ray charges cleared.
+      q.k = 0;
+      q.decoherenceCount = 0;
+      q.qecCharges = 0;
+      q.forcedMeasure = false;
+      render();
+      proceedAfterQuantumTurn();
+    }, TIMING.measureHold);
   }, TIMING.measureOpen);
 }
 
@@ -412,13 +411,8 @@ function runEvent(){
         SFX.qec();
       } else if(isStateMode()){
         q.decoherenceCount++;
-        const cap = stateCapIndex();
-        if(q.k > cap){
-          q.k = Math.max(cap - 1, 0);
-          desc = `You can no longer progress past iteration ${cap} — and the state has already snapped back to iteration ${q.k}.`;
-        } else {
-          desc = `You can no longer progress past iteration ${cap}. Push beyond it and the state will snap back two checkpoints.`;
-        }
+        const radius = Math.pow(0.75, q.decoherenceCount);
+        desc = `The state's circle shrinks to ${Math.round(radius*100)}% radius (${Math.round(radius*radius*100)}% of its original weight).`;
         SFX.decoherence();
       } else if(q.maxReachable > 0){
         q.maxReachable--;
@@ -561,10 +555,12 @@ function renderQuantumBoard(){
   });
 }
 
+const PLOT_OUTER_R = 80;
+
 function renderQuantumState(){
   const q = game.quantum;
   const N = game.config.deckSize;
-  const p = groverProbability(N, q.k);
+  const { p, phi, radius } = stateProbability(N, q.k, q.decoherenceCount);
 
   const square = document.getElementById('state-square');
   square.style.background = probToColor(p);
@@ -574,6 +570,39 @@ function renderQuantumState(){
   pctEl.textContent = game.config.showProb ? `${Math.round(p*100)}%` : '';
 
   document.getElementById('state-iteration').textContent = `Iteration ${q.k}`;
+
+  // ---- Cartesian plot ----
+  const r = PLOT_OUTER_R * radius;
+  document.getElementById('plot-mask').setAttribute('r', r);
+  document.getElementById('plot-unit-outline').setAttribute('r', r);
+
+  const shield = document.getElementById('plot-shield');
+  if(q.qecCharges > 0){
+    shield.style.visibility = 'visible';
+    shield.setAttribute('r', r + 4);
+  } else {
+    shield.style.visibility = 'hidden';
+  }
+
+  const svgAngle = -(phi * 180 / Math.PI); // negate: SVG's Y-down convention flips rotation sense
+  document.getElementById('plot-vector-group').setAttribute('transform', `rotate(${svgAngle}) scale(${radius})`);
+  const tip = document.getElementById('plot-vector-tip');
+  tip.style.fill = '';
+  tip.setAttribute('r', 6);
+}
+
+// Animates the vector snapping onto |GEM⟩ (success) or |X⟩ (fail) at full
+// radius, and the circle back to full size — called right when a STATE
+// mode measurement resolves, before the underlying state is reset.
+function renderPlotCollapse(success){
+  const targetSvgAngle = success ? -90 : 0;
+  document.getElementById('plot-vector-group').setAttribute('transform', `rotate(${targetSvgAngle}) scale(1)`);
+  const tip = document.getElementById('plot-vector-tip');
+  tip.style.fill = success ? '#f2c94c' : '#e0637a';
+  tip.setAttribute('r', 8);
+  document.getElementById('plot-mask').setAttribute('r', PLOT_OUTER_R);
+  document.getElementById('plot-unit-outline').setAttribute('r', PLOT_OUTER_R);
+  document.getElementById('plot-shield').style.visibility = 'hidden';
 }
 
 function renderClassicalDeck(){
@@ -619,10 +648,10 @@ function renderIndicators(){
 
   const decoEl = document.getElementById('decoherence-indicator');
   if(isStateMode() && q.decoherenceCount > 0){
-    const cap = stateCapIndex();
+    const radius = Math.pow(0.75, q.decoherenceCount);
     decoEl.style.visibility = 'visible';
     document.getElementById('decoherence-count').textContent = `×${q.decoherenceCount}`;
-    document.getElementById('decoherence-desc').textContent = `can't progress past iteration ${cap}`;
+    document.getElementById('decoherence-desc').textContent = `circle at ${Math.round(radius*100)}% radius`;
   } else {
     decoEl.style.visibility = 'hidden';
   }
@@ -748,22 +777,18 @@ function updateReadoutsState(myTurn){
   const measureSub = document.getElementById('measure-sub');
   const advanceSub = advanceBtn.querySelector('.action-sub');
   const N = game.config.deckSize;
-  const p = groverProbability(N, q.k);
-  const cap = stateCapIndex();
-  const willOvershoot = (q.k + 1) > cap;
+  const { p } = stateProbability(N, q.k, q.decoherenceCount);
+  const overshooting = q.k > 0 && groverProbability(N, q.k) < groverProbability(N, q.k - 1);
 
   if(!myTurn){
     advanceBtn.disabled = true;
-    advanceSub.textContent = 'Move to the next iteration';
+    advanceSub.textContent = 'Rotate the state further';
   } else if(q.forcedMeasure){
     advanceBtn.disabled = true;
     advanceSub.textContent = 'Unavailable — Cosmic Ray forces a measurement';
-  } else if(willOvershoot){
-    advanceBtn.disabled = false;
-    advanceSub.textContent = 'Warning — Decoherence will snap you back';
   } else {
     advanceBtn.disabled = false;
-    advanceSub.textContent = 'Move to the next iteration';
+    advanceSub.textContent = 'Rotate the state further';
   }
 
   if(game.config.showProb){
@@ -776,9 +801,7 @@ function updateReadoutsState(myTurn){
     qEl.textContent = game.phase === 'classical' ? 'Waiting for your opponent to draw…' : 'Resolving event…';
   } else if(q.forcedMeasure){
     qEl.innerHTML = `<span class="hl">Cosmic ray!</span> You must measure this turn.`;
-  } else if(willOvershoot){
-    qEl.innerHTML = `<span class="hl">Careful</span> — Decoherence has capped your progress. Advancing further will snap you back.`;
-  } else if(q.k > 0 && p < groverProbability(N, q.k - 1)){
+  } else if(overshooting){
     qEl.textContent = "You've overshot the peak — probability is dropping again.";
   } else {
     qEl.textContent = 'Advance the algorithm, or measure to try your luck.';

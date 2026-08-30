@@ -340,10 +340,13 @@ h1{
 .cosmic-indicator{ background: rgba(242,201,76,0.16); color: var(--gem); border:1px solid var(--gem); }
 .decoherence-indicator{ background: rgba(224,99,122,0.16); color: var(--danger); border:1px solid var(--danger); }
 
-/* ---------- Quantum STATE mode (single square, allows overshoot) ---------- */
+/* ---------- Quantum STATE SIMULATOR mode ---------- */
 .quantum-state{
   display:flex; flex-direction:column; align-items:center; gap:10px;
   margin-bottom: 18px; padding: 10px 0;
+}
+.state-boxes{
+  display:flex; gap: 16px; align-items:center; flex-wrap:wrap; justify-content:center;
 }
 .state-square{
   width: 150px; height: 150px;
@@ -352,6 +355,7 @@ h1{
   border: 2px solid var(--hairline);
   background: var(--quantum-wash);
   transition: background .25s ease;
+  flex-shrink: 0;
 }
 .state-square svg{ width: 56px; height: 56px; }
 .state-pct{
@@ -365,6 +369,29 @@ h1{
   font-size: 12.5px;
   color: var(--ink-dim);
 }
+
+.state-plot-box{
+  width: 150px; height: 150px;
+  border-radius: 14px;
+  border: 2px solid var(--hairline);
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+#state-plot{ width: 100%; height: 100%; }
+.plot-lost{ fill: var(--danger); }
+.plot-mask{ fill: var(--bg); transition: r .5s ease; }
+.plot-unit-outline{ fill:none; stroke: var(--ink-dim); stroke-width: 2.8; transition: r .5s ease; }
+.plot-shield{
+  fill:none; stroke: var(--classical-bright); stroke-width: 4; stroke-dasharray: 8 6;
+  visibility: hidden; transition: r .5s ease;
+}
+.plot-axis{ stroke: var(--hairline); stroke-width: 2; }
+.plot-arrow{ fill: var(--hairline); }
+.plot-label{ fill: var(--ink-dim); font-family:'IBM Plex Mono', monospace; font-size: 18px; }
+#plot-vector-group{ transition: transform .5s cubic-bezier(.4,0,.2,1); }
+.plot-vector{ stroke: var(--quantum-bright); stroke-width: 4; stroke-linecap: round; }
+.plot-vector-tip{ fill: var(--quantum-bright); }
 
 /* ---------- Quantum tiles ---------- */
 .quantum-board{
