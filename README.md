@@ -24,8 +24,9 @@ This is a static site — no build step, no dependencies.
 |---|---|---|
 | Gems to win | 1–10 | 3 |
 | Database size (N) | 4, 12, 30, 100 | 12 |
-| Board style | Tiles / State | Tiles |
-| Probability model | Rounded (dice-friendly) / Real Grover formula | Rounded (Tiles only — State always uses the real formula) |
+| Board style | Board Game / State Simulator | Board Game |
+| Probability model | Rounded (dice-friendly) / Real Grover formula | Rounded (Board Game only — State Simulator always uses the real formula) |
+| Decoherence model | Fixed / Variable | Variable (State Simulator only) |
 | Show probabilities | On/Off | On |
 | Sound | On/Off | On |
 | Game mode | No events / Normal / Hard | Normal |
@@ -57,11 +58,13 @@ position for the next cycle.
 a more physical model, worked out and confirmed in conversation rather
 than guessed at:
 
-- Each uncancelled Decoherence hit multiplies a radius factor `r` by
-  `3/4` (so `r = 0.75^d` after `d` hits) — visualized as the unit circle
-  physically shrinking, with the space it gives up filled in solid red
-  (the "lost" shell). The vector's own length shrinks by the same factor,
-  so it's drawn at `r · sin(φ)` / `r · cos(φ)` rather than unit length.
+- Each uncancelled Decoherence hit multiplies a radius factor `r` by a
+  shrink factor — either a flat **Fixed** value or a per-N **Variable**
+  value (default; see "Balance" below for both) — visualized as the
+  unit circle physically shrinking, with the space it gives up filled
+  in solid red (the "lost" shell). The vector's own length shrinks by
+  the same factor, so it's drawn at `r · sin(φ)` / `r · cos(φ)` rather
+  than unit length.
 - The measured probability blends the ordinary rotation-only probability
   with a uniform random guess, weighted by `r²`: `P = r²·sin²(φ) + (1−r²)/N`.
   This is the only formula consistent with two hard requirements: `r → 0`
@@ -97,6 +100,128 @@ consumes `{ p, phi, radius }` from that one function, so changing the
 formula there is enough.
 
 ## Balance
+
+**State Simulator vs. Board Game win rates**: since State Simulator uses
+completely different mechanics (continuous rotation instead of discrete
+capped tiles), there was no guarantee it would land anywhere near Board
+Game's already-tuned win rates. I ran the same Monte Carlo approach
+(15,000–20,000 simulated races per cell, quantum player always rotating
+to the true probability peak before measuring) across both modes, at No
+Events / Normal / Hard, for all four board sizes. At the original 3/4
+shrink factor:
+
+| Mode | N | Board Game | State Sim (0.75) | Diff |
+|---|---|---|---|---|
+| No Events | 4 | 69.0% | 69.2% | +0.2 |
+| No Events | 12 | 81.6% | 94.7% | **+13.1** |
+| No Events | 30 | 98.0% | 98.8% | +0.7 |
+| No Events | 100 | 99.8% | 99.8% | +0.1 |
+| Normal | 4 | 28.7% | 41.5% | +12.9 |
+| Normal | 12 | 49.5% | 70.8% | +21.3 |
+| Normal | 30 | 87.7% | 83.5% | −4.2 |
+| Normal | 100 | 97.9% | 85.5% | −12.4 |
+| Hard | 4 | 14.4% | 20.5% | +6.1 |
+| Hard | 12 | 20.3% | 35.3% | +15.0 |
+| Hard | 30 | 52.7% | 38.7% | −14.1 |
+| Hard | 100 | 80.4% | 25.6% | **−54.8** |
+
+Two unrelated things are going on here, and only one of them is fixable
+by adjusting the shrink factor:
+
+1. **The No Events gap is structural, not decoherence-related** (shrink
+   can't matter when there's no Decoherence to shrink anything). At
+   N=12, Board Game's tile-based policy hits an exact tie between
+   "gamble on the 50%-tile" and "advance to the guaranteed final tile"
+   (both cost 4 expected turns) — my simulator's tie-break happens to
+   pick the riskier 50/50 option. State Simulator has no such tie: it
+   just rotates straight to the true continuous peak (~98.8% at N=12,
+   vs. Board Game's rounded board never offering better than a 50/50
+   shot or an all-or-nothing guarantee at that size). This is a genuine
+   difference in what the two models can achieve, not a bug — no amount
+   of decoherence tuning touches it.
+2. **The Hard/N=100 gap is the real decoherence-tuning target.** Hard
+   mode's deck has only 1 QEC in 24 cards, so in a long N=100 game
+   (many turns needed to reach 3 gems, hence many Decoherence draws),
+   shrinkage compounds multiplicatively far more than Board Game's
+   "cover one more tile per hit" ever could — driving probability
+   toward the `1/N` floor, which is brutal at N=100.
+
+Searching shrink factors from 0.75 to 0.97 against just the
+decoherence-relevant Normal/Hard cells (8 cells, ignoring the untunable
+No Events gap) found **0.85** as the best single-value compromise —
+gentler than 3/4, so a given number of hits does less damage, which
+matters most in the long N=100 Hard games where hits pile up:
+
+| Mode | N | Board Game | State Sim (0.85) | Diff |
+|---|---|---|---|---|
+| Normal | 4 | 28.7% | 47.6% | +18.9 |
+| Normal | 12 | 49.5% | 78.9% | +29.5 |
+| Normal | 30 | 87.7% | 89.6% | +1.9 |
+| Normal | 100 | 97.9% | 92.8% | −5.1 |
+| Hard | 4 | 14.4% | 25.2% | +10.8 |
+| Hard | 12 | 20.3% | 46.9% | +26.7 |
+| Hard | 30 | 52.7% | 54.9% | +2.2 |
+| Hard | 100 | 80.4% | 46.9% | −33.5 |
+
+N=30 now lines up closely in both modes, and the Hard/N=100 gap shrank
+from 55 points to 33 — real improvement, but **no single multiplicative
+shrink factor can fully reconcile this**, because the mismatch pulls in
+opposite directions at different N: small N runs *hot* (inherited from
+the structural No-Events gap, which persists into Normal/Hard since
+short games don't accumulate enough Decoherence to override it), while
+Hard/N=100 runs *cold* (multiplicative compounding over many hits in a
+long game). A single knob can move the average closer but can't zero
+out both ends at once.
+
+**0.85 is what's shipped** (`STATE_DECOHERENCE_SHRINK` in `app.js`) as
+the best available compromise. If tighter matching at specific cells
+matters more than others, worth knowing: a **floor on `decoherenceCount`**
+(capping how many hits can stack, so radius can't shrink past some
+minimum) would specifically target the Hard/N=100 over-compounding
+without touching the small-N cells at all — that's the natural next
+lever if 0.85 doesn't feel right in play.
+
+**Fixed vs. Variable decoherence** (State Simulator only, setup-screen
+toggle, **Variable is default**): both use the same amplitude-damping
+formula, they just pick `r`'s per-hit shrink factor differently.
+
+- **Fixed** — a flat `0.8` at every N.
+- **Variable** — a per-N value, chosen by Monte Carlo so State
+  Simulator's **Normal**-mode win rate lands close to Board Game's
+  Normal-mode win rate at that same N (within ~1 point at every size
+  tested):
+
+  | N | Variable shrink | State (Normal) | Board Game (Normal) | Diff |
+  |---|---|---|---|---|
+  | 4 | 0.40 | 29.2% | 28.8% | +0.4 |
+  | 12 | 0.40 | 50.2% | 49.3% | +0.9 |
+  | 30 | 0.80 | 87.0% | 87.4% | −0.3 |
+  | 100 | 0.97 | 98.4% | 98.0% | +0.4 |
+
+  Small N needs far more aggressive damping to match than large N —
+  Board Game's advantage over a random guess shrinks fast as N shrinks,
+  while State Simulator's continuous-rotation peak stays disproportionately
+  strong there (the same effect behind the structural No-Events gap
+  above), so it takes heavier damping to pull small-N State Simulator
+  back down to size.
+
+  **This table is calibrated against Normal mode only and reused
+  as-is for Hard mode** (same per-N values either way, by design) —
+  it wasn't re-tuned for Hard's very different event deck, so it's
+  worth knowing how far off Hard mode ends up:
+
+  | N | State (Hard, variable) | Board Game (Hard) | Diff |
+  |---|---|---|---|
+  | 4 | 11.3% | 14.3% | −3.0 |
+  | 12 | 13.9% | 20.6% | −6.7 |
+  | 30 | 46.7% | 53.0% | −6.3 |
+  | 100 | 80.4% | 80.1% | +0.3 |
+
+  Within about 3–7 points everywhere — noticeably better than Fixed 0.8
+  manages on Hard mode (+8 at N=4, +19 at N=12, −5.7 at N=30, a brutal
+  −45 at N=100, from the same multiplicative-compounding problem
+  described above). The Normal-calibrated table happens to generalize
+  reasonably well to Hard mode without any Hard-specific tuning.
 
 **A/B/C switch**: `app.js` has three `EVENT_DECK_NORMAL` lines right next
 to each other — two commented out — so you can flip between them by

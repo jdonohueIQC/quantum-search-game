@@ -34,17 +34,34 @@ function groverProbability(N, k){
 }
 
 /* STATE mode's decoherence model: each hit shrinks a "radius" (amplitude)
-   multiplicatively by 3/4, never reaching exactly zero. The measured
-   probability blends the ordinary (rotation-only) Grover probability
-   with a uniform 1/N guess, weighted by radius² — consistent with a
-   radius of 0 being exactly the maximally-mixed state (identity/N).
+   multiplicatively by a shrink factor, never reaching exactly zero. The
+   measured probability blends the ordinary (rotation-only) Grover
+   probability with a uniform 1/N guess, weighted by radius² — consistent
+   with a radius of 0 being exactly the maximally-mixed state (identity/N).
    theta and the rotation angle phi are unaffected by decoherence, which
-   is what lets overshoot keep happening even under heavy decoherence. */
-function stateProbability(N, k, decoherenceCount){
+   is what lets overshoot keep happening even under heavy decoherence.
+
+   Two selectable shrink models (see README.md "Balance" for how both
+   were tuned by Monte Carlo):
+   - FIXED: a flat 0.8 regardless of N.
+   - VARIABLE (default): a per-N value chosen so State Simulator's
+     Normal-mode win rate lands within ~1 point of Board Game's
+     Normal-mode win rate at that same N. Small N needs much heavier
+     damping than large N to match, because Board Game's advantage over
+     a random guess shrinks fast at small N while State Simulator's
+     continuous-rotation peak stays disproportionately strong there. */
+const STATE_SHRINK_FIXED = 0.8;
+const STATE_SHRINK_VARIABLE = { 4: 0.4, 12: 0.4, 30: 0.8, 100: 0.97 };
+
+function stateShrinkFactor(config){
+  return config.decoherenceModel === 'fixed' ? STATE_SHRINK_FIXED : STATE_SHRINK_VARIABLE[config.deckSize];
+}
+
+function stateProbability(N, k, decoherenceCount, shrinkFactor){
   const theta = Math.asin(1/Math.sqrt(N));
   const phi = (2*k+1)*theta;
   const pureP = Math.pow(Math.sin(phi), 2);
-  const radius = Math.pow(0.75, decoherenceCount); // amplitude-like factor
+  const radius = Math.pow(shrinkFactor, decoherenceCount); // amplitude-like factor
   const w = radius*radius;                          // probability-like weight
   const p = w*pureP + (1-w)/N;
   return { p, phi, radius };
@@ -345,7 +362,7 @@ function doMeasureState(){
   setTimeout(()=>{
     const q = game.quantum;
     const N = game.config.deckSize;
-    const { p } = stateProbability(N, q.k, q.decoherenceCount);
+    const { p } = stateProbability(N, q.k, q.decoherenceCount, stateShrinkFactor(game.config));
     const success = Math.random() < p;
 
     if(success){
@@ -411,7 +428,7 @@ function runEvent(){
         SFX.qec();
       } else if(isStateMode()){
         q.decoherenceCount++;
-        const radius = Math.pow(0.75, q.decoherenceCount);
+        const radius = Math.pow(stateShrinkFactor(game.config), q.decoherenceCount);
         desc = `The state's circle shrinks to ${Math.round(radius*100)}% radius (${Math.round(radius*radius*100)}% of its original weight).`;
         SFX.decoherence();
       } else if(q.maxReachable > 0){
@@ -560,7 +577,7 @@ const PLOT_OUTER_R = 80;
 function renderQuantumState(){
   const q = game.quantum;
   const N = game.config.deckSize;
-  const { p, phi, radius } = stateProbability(N, q.k, q.decoherenceCount);
+  const { p, phi, radius } = stateProbability(N, q.k, q.decoherenceCount, stateShrinkFactor(game.config));
 
   const square = document.getElementById('state-square');
   square.style.background = probToColor(p);
@@ -648,7 +665,7 @@ function renderIndicators(){
 
   const decoEl = document.getElementById('decoherence-indicator');
   if(isStateMode() && q.decoherenceCount > 0){
-    const radius = Math.pow(0.75, q.decoherenceCount);
+    const radius = Math.pow(stateShrinkFactor(game.config), q.decoherenceCount);
     decoEl.style.visibility = 'visible';
     document.getElementById('decoherence-count').textContent = `×${q.decoherenceCount}`;
     document.getElementById('decoherence-desc').textContent = `circle at ${Math.round(radius*100)}% radius`;
@@ -777,7 +794,7 @@ function updateReadoutsState(myTurn){
   const measureSub = document.getElementById('measure-sub');
   const advanceSub = advanceBtn.querySelector('.action-sub');
   const N = game.config.deckSize;
-  const { p } = stateProbability(N, q.k, q.decoherenceCount);
+  const { p } = stateProbability(N, q.k, q.decoherenceCount, stateShrinkFactor(game.config));
   const overshooting = q.k > 0 && groverProbability(N, q.k) < groverProbability(N, q.k - 1);
 
   if(!myTurn){
@@ -822,6 +839,7 @@ function readConfigFromSetup(){
     deckSize: parseInt(document.querySelector('#deck-size-group .pill.active').dataset.value, 10),
     boardMode: document.querySelector('#board-style-group .pill.active').dataset.value,
     probMode: document.querySelector('#prob-mode-group .pill.active').dataset.value,
+    decoherenceModel: document.querySelector('#decoherence-model-group .pill.active').dataset.value,
     showProb: document.getElementById('show-prob-toggle').classList.contains('active'),
     eventsEnabled: mode !== 'no-events',
     hardMode: mode === 'hard',
@@ -870,11 +888,18 @@ function wireSetupScreen(){
       const isState = p.dataset.value === 'state';
       document.getElementById('prob-mode-field').style.display = isState ? 'none' : '';
       document.getElementById('board-style-note').style.display = isState ? 'block' : 'none';
+      document.getElementById('decoherence-model-field').style.display = isState ? '' : 'none';
     });
   });
   document.querySelectorAll('#prob-mode-group .pill').forEach(p=>{
     p.addEventListener('click', ()=>{
       document.querySelectorAll('#prob-mode-group .pill').forEach(x=>x.classList.remove('active'));
+      p.classList.add('active');
+    });
+  });
+  document.querySelectorAll('#decoherence-model-group .pill').forEach(p=>{
+    p.addEventListener('click', ()=>{
+      document.querySelectorAll('#decoherence-model-group .pill').forEach(x=>x.classList.remove('active'));
       p.classList.add('active');
     });
   });
