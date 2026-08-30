@@ -30,7 +30,7 @@ html,body{
   margin:0; padding:0;
   background: var(--bg);
   color: var(--ink);
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: 'Barlow Condensed', sans-serif;
   min-height:100vh;
 }
 
@@ -41,7 +41,7 @@ body{
   background-attachment: fixed;
 }
 
-.mono{ font-family: 'IBM Plex Mono', monospace; }
+.mono{ font-family: Verdana, Geneva, sans-serif; }
 
 #app{ min-height:100vh; }
 
@@ -78,7 +78,7 @@ body{
 }
 
 .eyebrow{
-  font-family:'IBM Plex Mono', monospace;
+  font-family:Verdana, Geneva, sans-serif;
   font-size: 12px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -95,6 +95,7 @@ h1{
 }
 
 .tagline{
+  font-family: Georgia, serif;
   color: var(--ink-dim);
   font-size: 15px;
   line-height: 1.5;
@@ -112,6 +113,7 @@ h1{
 .setup-field-wide{ grid-column: 1 / -1; }
 
 .mode-note{
+  font-family: Georgia, serif;
   font-size: 12.5px;
   color: var(--ink-dim);
   background: var(--bg-panel-raised);
@@ -144,7 +146,7 @@ h1{
   width: 56px; text-align:center;
   background: var(--bg-panel-raised);
   border: none; color: var(--ink);
-  font-family:'IBM Plex Mono', monospace;
+  font-family:Verdana, Geneva, sans-serif;
   font-size: 16px; padding: 8px 0;
   -moz-appearance: textfield;
 }
@@ -165,7 +167,7 @@ h1{
   border: 1px solid var(--hairline);
   background: var(--bg-panel-raised);
   color: var(--ink-dim);
-  font-family:'IBM Plex Mono', monospace;
+  font-family:Verdana, Geneva, sans-serif;
   font-size: 13px;
   cursor:pointer;
   transition: all .15s ease;
@@ -204,7 +206,7 @@ h1{
   border: none;
   background: linear-gradient(135deg, var(--quantum), var(--quantum-bright));
   color: #04141c;
-  font-family:'Space Grotesk', sans-serif;
+  font-family:'Barlow Condensed', sans-serif;
   font-weight: 700;
   font-size: 16px;
   cursor:pointer;
@@ -217,11 +219,14 @@ h1{
   margin-top: 22px;
   color: var(--ink-dim);
   font-size: 13.5px;
+  font-family: Georgia, serif;
 }
 .rules-disclosure summary{
   cursor:pointer; color: var(--ink);
   font-weight: 500;
   margin-bottom: 8px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 15px;
 }
 .rules-disclosure ol{ padding-left: 20px; line-height: 1.6; }
 .rules-disclosure li{ margin-bottom: 6px; }
@@ -248,7 +253,7 @@ h1{
 }
 .game-title{ font-weight:700; font-size:19px; }
 .game-meta{
-  font-family:'IBM Plex Mono', monospace;
+  font-family:Verdana, Geneva, sans-serif;
   font-size: 13px; color: var(--ink-dim);
 }
 .meta-dot{ margin: 0 4px; }
@@ -270,7 +275,7 @@ h1{
   background:none; border:1px solid var(--hairline);
   color: var(--ink-dim); padding: 7px 14px;
   border-radius: 8px; cursor:pointer;
-  font-family:'Space Grotesk', sans-serif; font-size:13px;
+  font-family:'Barlow Condensed', sans-serif; font-size:13px;
 }
 .ghost-btn:hover{ color: var(--ink); border-color: var(--quantum-deep); }
 .ghost-btn.result-btn{
@@ -308,7 +313,7 @@ h1{
 }
 
 .quadrant-head{
-  font-family:'IBM Plex Mono', monospace;
+  font-family:Verdana, Geneva, sans-serif;
   font-size: 11px; text-transform:uppercase; letter-spacing:.08em;
   color: var(--ink-dim); margin-bottom: 10px;
 }
@@ -319,7 +324,7 @@ h1{
 }
 .panel-head h2{ font-size:18px; margin:0; display:flex; align-items:center; gap:10px; }
 .role-tag{
-  font-family:'IBM Plex Mono', monospace;
+  font-family:Verdana, Geneva, sans-serif;
   font-size: 10.5px; text-transform:uppercase; letter-spacing:.06em;
   padding: 3px 8px; border-radius: 5px;
 }
@@ -346,7 +351,7 @@ h1{
   align-items:flex-start;
 }
 .status-chip{
-  font-family:'IBM Plex Mono', monospace;
+  font-family:Verdana, Geneva, sans-serif;
   font-size: 12.5px;
   padding: 8px 12px;
   border-radius: 8px;
@@ -377,13 +382,13 @@ h1{
 }
 .state-square svg{ width: 56px; height: 56px; }
 .state-pct{
-  font-family:'IBM Plex Mono', monospace;
+  font-family:Verdana, Geneva, sans-serif;
   font-weight: 700;
   font-size: 30px;
   color: #04141c;
 }
 .state-iteration{
-  font-family:'IBM Plex Mono', monospace;
+  font-family:Verdana, Geneva, sans-serif;
   font-size: 12.5px;
   color: var(--ink-dim);
 }
@@ -406,7 +411,7 @@ h1{
 }
 .plot-axis{ stroke: var(--hairline); stroke-width: 2; }
 .plot-arrow{ fill: var(--hairline); }
-.plot-label{ fill: var(--ink-dim); font-family:'IBM Plex Mono', monospace; font-size: 18px; }
+.plot-label{ fill: var(--ink-dim); font-family:Verdana, Geneva, sans-serif; font-size: 18px; }
 #plot-vector-group{ transition: transform .5s cubic-bezier(.4,0,.2,1); }
 .plot-vector{ stroke: var(--quantum-bright); stroke-width: 4; stroke-linecap: round; }
 .plot-vector-tip{ fill: var(--quantum-bright); }
@@ -421,7 +426,7 @@ h1{
   width: 72px; height: 72px;
   border-radius: 8px;
   display:flex; align-items:center; justify-content:center;
-  font-family:'IBM Plex Mono', monospace;
+  font-family:Verdana, Geneva, sans-serif;
   font-weight:600; font-size: 13.5px;
   border: 1.5px solid var(--hairline);
   background: var(--quantum-wash);
@@ -468,7 +473,7 @@ h1{
 .action-btn:hover:not(:disabled){ border-color: var(--quantum-bright); background: var(--bg-panel); }
 .action-btn:disabled{ opacity: 0.45; cursor:not-allowed; }
 .action-title{ font-weight:600; font-size:14px; color: var(--ink); }
-.action-sub{ font-size:11.5px; color: var(--ink-dim); font-family:'IBM Plex Mono', monospace; }
+.action-sub{ font-size:11.5px; color: var(--ink-dim); font-family:Verdana, Geneva, sans-serif; }
 .measure-btn:hover:not(:disabled){ border-color: var(--gem); }
 .measure-btn.forced{
   border-color: var(--gem);
@@ -563,7 +568,7 @@ h1{
   gap: 4px;
   flex: 1;
   max-height: 220px; overflow-y:auto;
-  font-family:'IBM Plex Mono', monospace;
+  font-family:Verdana, Geneva, sans-serif;
   font-size: 12.5px;
 }
 .log-list::-webkit-scrollbar{ width:6px; }
@@ -604,6 +609,7 @@ h1{
   color: var(--ink);
 }
 .event-card-desc{
+  font-family: Georgia, serif;
   font-size: 13px; color: var(--ink-dim); line-height:1.5;
 }
 
