@@ -208,6 +208,15 @@ function isStateMode(){ return game.config.boardMode === 'state'; }
 function log(who, text){
   game.log.push({who, text});
   renderLog();
+  updateHeaderLogEntry(who, text);
+}
+
+function updateHeaderLogEntry(who, text){
+  if(game.over) return; // endGame() owns the header slot once the game is decided
+  document.getElementById('header-log-dot').style.display = '';
+  const el = document.getElementById('header-log-entry');
+  el.className = `header-log-entry who-${who}`;
+  el.textContent = text;
 }
 
 /* ---------- Turn logic: classical opponent ---------- */
@@ -506,6 +515,13 @@ function endGame(winner){
   `;
   document.getElementById('play-again-btn').addEventListener('click', ()=> showScreen('setup-screen'));
   document.querySelector('#event-panel .quadrant-head').textContent = 'Result';
+
+  const headerEntry = document.getElementById('header-log-entry');
+  headerEntry.textContent = title;
+  headerEntry.className = `header-log-entry ${winner === 'quantum' ? 'result-win' : 'result-lose'}`;
+
+  const newGameBtn = document.getElementById('new-game-btn');
+  newGameBtn.classList.add('result-btn', winner === 'quantum' ? 'result-btn-win' : 'result-btn-lose');
 }
 
 /* ---------- Rendering ---------- */
@@ -943,6 +959,11 @@ function wireSetupScreen(){
     modeLabel.className = `game-mode-label mode-${config.mode}`;
     document.getElementById('quantum-tiles').style.display = config.boardMode === 'state' ? 'none' : '';
     document.getElementById('quantum-state').style.display = config.boardMode === 'state' ? 'flex' : 'none';
+    const headerEntry = document.getElementById('header-log-entry');
+    headerEntry.textContent = '';
+    headerEntry.className = 'header-log-entry';
+    document.getElementById('header-log-dot').style.display = 'none';
+    document.getElementById('new-game-btn').className = 'ghost-btn';
     resetEventPanel();
     newGame(config);
     showScreen('game-screen');

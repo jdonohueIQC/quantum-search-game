@@ -273,6 +273,15 @@ h1{
   font-family:'Space Grotesk', sans-serif; font-size:13px;
 }
 .ghost-btn:hover{ color: var(--ink); border-color: var(--quantum-deep); }
+.ghost-btn.result-btn{
+  font-weight: 700;
+  border-color: transparent;
+  color: #ffffff;
+}
+.ghost-btn.result-btn-win{ background: var(--quantum); }
+.ghost-btn.result-btn-win:hover{ background: var(--quantum-bright); color: #04141c; border-color: transparent; }
+.ghost-btn.result-btn-lose{ background: var(--classical); }
+.ghost-btn.result-btn-lose:hover{ background: var(--classical-bright); color: #04141c; border-color: transparent; }
 
 /* ===================== QUADRANT LAYOUT ===================== */
 
@@ -563,6 +572,20 @@ h1{
 .log-entry .who-q{ color: var(--quantum-bright); }
 .log-entry .who-c{ color: var(--classical-bright); }
 .log-entry .who-e{ color: var(--gem); }
+
+.header-log-entry{
+  font-size: 13px;
+  color: var(--ink-dim);
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.header-log-entry.who-q{ color: var(--quantum-bright); }
+.header-log-entry.who-c{ color: var(--classical-bright); }
+.header-log-entry.who-e{ color: var(--gem); }
+.header-log-entry.result-win{ color: var(--quantum); font-weight: 800; }
+.header-log-entry.result-lose{ color: var(--classical); font-weight: 800; }
 
 .event-card{
   border: 1px solid var(--hairline);
