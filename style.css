@@ -20,6 +20,7 @@
   --gem: #f2c94c;
   --danger: #e0637a;
   --ok: #f2c94c;
+  --qec: #6fe6a0; /* light green — QEC's own color, distinct from Extra RAM's light blue */
   --radius: 10px;
   font-size: 16px;
 }
@@ -336,6 +337,7 @@ h1{
 .gem-slot.filled{ opacity:1; filter: drop-shadow(0 0 4px rgba(242,201,76,0.7)); }
 
 .turn-readout{
+  font-family: Verdana, Geneva, sans-serif;
   font-size: 13.5px;
   color: var(--ink-dim);
   min-height: 20px;
@@ -358,7 +360,7 @@ h1{
   width: fit-content;
   visibility: hidden; /* toggled to visible in JS — layout space is always reserved */
 }
-.qec-shield{ background: rgba(150,23,46,0.18); color: var(--quantum-bright); border:1px solid var(--quantum); }
+.qec-shield{ background: rgba(111,230,160,0.16); color: var(--qec); border:1px solid var(--qec); }
 .ram-indicator{ background: rgba(0,93,126,0.16); color: var(--classical-bright); border:1px solid var(--classical); }
 .cosmic-indicator{ background: rgba(242,201,76,0.16); color: var(--gem); border:1px solid var(--gem); }
 .decoherence-indicator{ background: rgba(224,99,122,0.16); color: var(--danger); border:1px solid var(--danger); }
@@ -406,7 +408,7 @@ h1{
 .plot-mask{ fill: var(--bg); transition: r .5s ease; }
 .plot-unit-outline{ fill:none; stroke: var(--ink-dim); stroke-width: 2.8; transition: r .5s ease; }
 .plot-shield{
-  fill:none; stroke: var(--classical-bright); stroke-width: 4; stroke-dasharray: 8 6;
+  fill:none; stroke: var(--qec); stroke-width: 4; stroke-dasharray: 8 6;
   visibility: hidden; transition: r .5s ease;
 }
 .plot-axis{ stroke: var(--hairline); stroke-width: 2; }
@@ -598,10 +600,11 @@ h1{
   padding: 14px 16px;
   background: var(--bg-panel);
   transition: box-shadow .3s ease, border-color .3s ease;
+  --event-color: var(--gem);
 }
 .event-card.flash{
-  border-color: var(--gem);
-  box-shadow: 0 0 0 3px rgba(242,201,76,0.18);
+  border-color: var(--event-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--event-color) 18%, transparent);
 }
 .event-card-title{
   font-weight: 700; font-size: 15px;

@@ -127,12 +127,23 @@ function freshEventDeck(hardMode){
 }
 
 const EVENT_TEXT = {
-  DECOHERENCE: { title: 'Decoherence', desc: 'The right-most open tile is covered. Progress can\u2019t pass it until you next measure.' },
+  DECOHERENCE: { title: 'Decoherence', desc: 'The right-most open tile is covered. You cannot advance to this tile on this attempt.' },
   COSMIC_RAY: { title: 'Cosmic Ray', desc: 'You must measure on your next turn.' },
   BLUE_SCREEN: { title: 'Blue Screen', desc: 'Your opponent\u2019s entire deck is reshuffled from scratch (it keeps any Extra RAM).' },
   QEC: { title: 'Quantum Error Correction', desc: 'You gain a shield that cancels the next Decoherence drawn.' },
   EXTRA_RAM: { title: 'Extra RAM', desc: 'Your opponent can now flip one additional card per turn.' },
   NEUTRAL: { title: 'Neutral', desc: 'Nothing happens this round.' }
+};
+
+// Per-event-type accent colors, shared by the event-panel card, the log
+// entry's event name, and (for QEC) the shield indicators elsewhere.
+const EVENT_COLORS = {
+  DECOHERENCE: 'var(--quantum)',       // dark red
+  COSMIC_RAY: 'var(--gem)',            // yellow
+  BLUE_SCREEN: 'var(--classical)',     // dark blue
+  QEC: 'var(--qec)',                   // light green
+  EXTRA_RAM: 'var(--classical-bright)',// light blue
+  NEUTRAL: 'var(--ink-dim)'            // gray
 };
 
 /* ---------- Utilities ---------- */
@@ -216,7 +227,7 @@ function updateHeaderLogEntry(who, text){
   document.getElementById('header-log-dot').style.display = '';
   const el = document.getElementById('header-log-entry');
   el.className = `header-log-entry who-${who}`;
-  el.textContent = text;
+  el.innerHTML = text;
 }
 
 /* ---------- Turn logic: classical opponent ---------- */
@@ -474,8 +485,9 @@ function runEvent(){
       break;
   }
 
-  log('e', `${title} — ${desc}`);
-  renderEventCard(title, desc);
+  const color = EVENT_COLORS[card];
+  log('e', `<span style="color:${color}">${title}</span> — ${desc}`);
+  renderEventCard(title, desc, color);
   render();
   game.phase = 'classical';
   updateReadouts();
@@ -708,11 +720,12 @@ function renderLog(){
   ).reverse().join('');
 }
 
-function renderEventCard(title, desc){
+function renderEventCard(title, desc, color){
   const panel = document.getElementById('event-card');
   document.getElementById('event-card-title').textContent = title;
   document.getElementById('event-card-desc').textContent = desc;
   panel.classList.remove('flash');
+  panel.style.setProperty('--event-color', color);
   void panel.offsetWidth; // restart animation
   panel.classList.add('flash');
 }
