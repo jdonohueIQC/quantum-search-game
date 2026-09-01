@@ -8,6 +8,18 @@ the **classical search** is an automated dealer.
 Live rules reference: the original game's facilitator instructions, turn
 order, and probability table are in `Quantum-Search-Game-Boards-Pieces-v4.pdf`.
 
+## Fixed bugs worth knowing about
+
+- **Board Game QEC discarded too early.** Advancing onto the final tile
+  used to immediately discard an armed QEC shield, on the theory that
+  the printed rules call this "a measurement" for turn-timing purposes.
+  In practice this left you unprotected against a Decoherence draw in
+  the very next event phase, even though you hadn't actually measured
+  yet (you still wait one more turn to collect). QEC is now only
+  discarded by an actual measurement (in `doMeasureTiles`, or by
+  cancelling a Decoherence outright in `runEvent`) — see the comment at
+  that spot in `app.js` for the reasoning.
+
 ## Running it
 
 This is a static site — no build step, no dependencies.
@@ -78,11 +90,11 @@ than guessed at:
   only approached in the limit, never hit outright — same as physical
   decoherence.
 - A "🌀 Decoherence ×N" counter (same status-chip style as the QEC
-  shield, and same TILES-mode chip element, reused) shows the current
-  radius as a percentage.
+  shield, and same Board Game-mode chip element, reused) shows the
+  current radius as a percentage.
 - **QEC still works exactly the same as in Board Game mode** — arm a
   shield, cancel the next Decoherence outright (the radius doesn't
-  shrink further that time) — visualized as a dashed blue ring around
+  shrink further that time) — visualized as a dashed green ring around
   the current circle boundary while armed.
 - Rotation itself (`φ`, and therefore overshoot) is completely
   unaffected by Decoherence — only the radius/weighting changes. That's
@@ -377,9 +389,13 @@ a consistent "discrete tile, no overshoot" board for every size:
 
 ## File overview
 
-- `index.html` — setup screen, game screen, win screen.
+- `index.html` — setup screen, game screen (four-quadrant layout with
+  the in-quadrant win/lose result display).
 - `style.css` — visual design (dark lab theme; red `#96172E` for the
-  quantum panel, blue `#005D7E` for the classical/opponent panel).
+  quantum panel, blue `#005D7E` for the classical/opponent panel;
+  Barlow Condensed for headings/UI chrome, Verdana for compact data
+  displays, Georgia for prose — the three free University of Waterloo
+  brand fonts).
 - `app.js` — all game state and logic: board construction, event deck,
   opponent automation, quantum turn resolution, rendering, pacing.
 - `audio.js` — sound effects, entirely synthesized with the Web Audio API

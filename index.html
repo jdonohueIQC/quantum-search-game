@@ -45,6 +45,11 @@
 
         <div class="setup-field setup-field-wide">
           <label>Board style</label>
+          <!-- data-value stays "tiles"/"state" internally (matching
+               app.js's config.boardMode and CSS class names) even though
+               the displayed labels are "Board Game"/"State Simulator" —
+               only the visible copy was renamed, to avoid touching every
+               internal reference. -->
           <div class="pill-group" id="board-style-group">
             <button type="button" class="pill active" data-value="tiles">Board Game</button>
             <button type="button" class="pill" data-value="state">State Simulator</button>
@@ -52,6 +57,8 @@
           <p class="mode-note mode-note-inline" id="board-style-note">Mimics board-game mechanics in a race-to-the-finish.</p>
         </div>
 
+        <!-- Only relevant to Board Game — hidden whenever State Simulator
+             is selected (State Simulator always uses the real formula). -->
         <div class="setup-field" id="prob-mode-field">
           <label>Probability model</label>
           <div class="pill-group" id="prob-mode-group">
@@ -60,6 +67,9 @@
           </div>
         </div>
 
+        <!-- Only relevant to State Simulator — hidden by default (Board
+             Game is the default board style), shown when State Simulator
+             is selected. See app.js's STATE_SHRINK_FIXED/VARIABLE. -->
         <div class="setup-field setup-field-wide" id="decoherence-model-field" style="display:none;">
           <label>Decoherence model</label>
           <div class="pill-group" id="decoherence-model-group">
@@ -167,6 +177,16 @@
 
         <div class="quantum-board" id="quantum-tiles"></div>
 
+        <!-- State Simulator only: the probability square (left) plus a
+             Cartesian plot (right) showing the actual rotating quantum
+             state. See style.css's "Cartesian plot layering" comment
+             for how the shrinking-circle-with-red-shell effect is built
+             from stacked circles, and app.js's renderQuantumState() /
+             renderPlotCollapse() for what updates these elements and when.
+             viewBox is -140..140 in both axes (bigger than the 80-unit
+             circle actually drawn) purely to leave room for the axis
+             arrows and ket labels without clipping against the box's
+             rounded corners. -->
         <div class="quantum-state" id="quantum-state" style="display:none;">
           <div class="state-boxes">
             <div class="state-square" id="state-square">
@@ -175,24 +195,33 @@
 
             <div class="state-plot-box">
               <svg id="state-plot" viewBox="-140 -140 280 280" width="150" height="150">
+                <!-- Layer 1-3: the shrinking circle (see style.css) -->
                 <circle class="plot-lost" cx="0" cy="0" r="80"/>
                 <circle class="plot-mask" id="plot-mask" cx="0" cy="0" r="80"/>
                 <circle class="plot-shield" id="plot-shield" cx="0" cy="0" r="84"/>
                 <circle class="plot-unit-outline" id="plot-unit-outline" cx="0" cy="0" r="80"/>
 
+                <!-- X and Y axes, each with an arrowhead polygon at its positive end -->
                 <line class="plot-axis" x1="-92" y1="0" x2="88" y2="0"/>
                 <polygon class="plot-arrow" points="92,0 80,-7 80,7"/>
                 <line class="plot-axis" x1="0" y1="92" x2="0" y2="-88"/>
                 <polygon class="plot-arrow" points="0,-92 -7,-80 7,-80"/>
 
+                <!-- |X⟩ ket label: bracket text + a small inline X icon + closing bracket -->
                 <text class="plot-label" x="96" y="6">|</text>
                 <svg x="100" y="-8" width="17" height="17" viewBox="0 0 24 24"><line x1="4" y1="4" x2="20" y2="20" stroke="#8b93a7" stroke-width="4.5" stroke-linecap="round"/><line x1="20" y1="4" x2="4" y2="20" stroke="#8b93a7" stroke-width="4.5" stroke-linecap="round"/></svg>
                 <text class="plot-label" x="120" y="6">⟩</text>
 
+                <!-- |GEM⟩ ket label, same bracket+icon+bracket construction -->
                 <text class="plot-label" x="-10" y="-98">|</text>
                 <svg x="-2" y="-112" width="17" height="17" viewBox="0 0 24 24"><polygon points="12,2 22,9 12,22 2,9" fill="#f2c94c"/></svg>
                 <text class="plot-label" x="10" y="-98">⟩</text>
 
+                <!-- The rotating state vector. Line runs from the origin to
+                     (80,0) at rest; app.js animates this group's `transform`
+                     (rotate + scale together) rather than the line's own
+                     endpoint, since SVG's `transform` is reliably
+                     CSS-transitionable while x2/y2 are not. -->
                 <g id="plot-vector-group">
                   <line id="plot-vector" class="plot-vector" x1="0" y1="0" x2="80" y2="0"/>
                   <circle id="plot-vector-tip" class="plot-vector-tip" cx="80" cy="0" r="6"/>

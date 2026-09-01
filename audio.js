@@ -10,6 +10,9 @@ const SFX = (function(){
   let ctx = null;
   let enabled = true;
 
+  // Lazily creates (or resumes, if suspended by the browser's autoplay
+  // policy) the shared AudioContext. Returns null on browsers without
+  // Web Audio support, in which case every sound below just no-ops.
   function ensureCtx(){
     if(!ctx){
       const AC = window.AudioContext || window.webkitAudioContext;
@@ -20,6 +23,10 @@ const SFX = (function(){
     return ctx;
   }
 
+  // Plays one oscillator note: ramps up quickly to `peak` volume, then
+  // decays exponentially to silence over `duration` seconds, starting
+  // `start` seconds from now. This attack/decay envelope (rather than an
+  // abrupt on/off) is what keeps every tone from sounding like a click.
   function tone(freq, start, duration, type, peak){
     if(!enabled) return;
     const c = ensureCtx();
@@ -36,6 +43,9 @@ const SFX = (function(){
     osc.stop(c.currentTime + start + duration + 0.03);
   }
 
+  // Like tone(), but the frequency glides from `freqFrom` to `freqTo`
+  // over the note's duration instead of staying fixed — used for every
+  // "whoosh"/"zap"/"womp" style effect (Decoherence, Cosmic Ray, fail).
   function sweep(freqFrom, freqTo, start, duration, type, peak){
     if(!enabled) return;
     const c = ensureCtx();
@@ -53,6 +63,10 @@ const SFX = (function(){
     osc.stop(c.currentTime + start + duration + 0.03);
   }
 
+  // Generates a short burst of white noise (a fresh random buffer each
+  // call, faded linearly to silence, then high-pass filtered to keep
+  // only the crisp high end) — the "snap"/"crackle" layered under the
+  // card-flip and cosmic-ray sounds, on top of their tonal component.
   function noiseBurst(start, duration, peak){
     if(!enabled) return;
     const c = ensureCtx();
@@ -75,6 +89,9 @@ const SFX = (function(){
     src.start(c.currentTime + start);
   }
 
+  // Public API: setEnabled()/init() are plumbing (see the module comment
+  // above), everything else is one named sound per game event, each
+  // built from the three primitives above.
   return {
     setEnabled(v){ enabled = v; },
     init(){ ensureCtx(); },

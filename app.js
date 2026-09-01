@@ -7,10 +7,14 @@
 /* ---------- Small SVG icon helpers (used instead of emoji so
    colors are exact and consistent across platforms) ---------- */
 
+// Gem icon (yellow diamond) used for successful measurements, found-card
+// faces, and the |GEM⟩ axis label — kept as SVG rather than emoji so the
+// exact color is guaranteed across platforms/OSes.
 function svgDiamond(fill, size){
   size = size || 26;
   return `<svg viewBox="0 0 24 24" width="${size}" height="${size}"><polygon points="12,2 22,9 12,22 2,9" fill="${fill}"/></svg>`;
 }
+// Failure "X" icon, same rationale as svgDiamond above.
 function svgX(color, size){
   size = size || 30;
   return `<svg viewBox="0 0 24 24" width="${size}" height="${size}"><line x1="4" y1="4" x2="20" y2="20" stroke="${color}" stroke-width="4.5" stroke-linecap="round"/><line x1="20" y1="4" x2="4" y2="20" stroke="${color}" stroke-width="4.5" stroke-linecap="round"/></svg>`;
@@ -28,6 +32,11 @@ const ROUNDED_BOARDS = {
   100: [[1,100],[1,10],[1,4],[2,5],[5,8],[4,5],[9,10]] // extrapolated — no printed board for N=100
 };
 
+// Grover's algorithm success probability after k iterations, for a
+// database of size N: P(k) = sin²((2k+1)·θ), where sin(θ) = 1/√N.
+// This is the single source of truth for "real" probabilities — both
+// Board Game's "Real Grover formula" mode and every State Simulator
+// calculation route through this function.
 function groverProbability(N, k){
   const theta = Math.asin(1/Math.sqrt(N));
   return Math.pow(Math.sin((2*k+1)*theta), 2);
@@ -57,6 +66,10 @@ function stateShrinkFactor(config){
   return config.decoherenceModel === 'fixed' ? STATE_SHRINK_FIXED : STATE_SHRINK_VARIABLE[config.deckSize];
 }
 
+// Blends the pure (rotation-only) Grover probability with a uniform 1/N
+// guess, weighted by radius² — see the big comment above for the physics.
+// Called fresh every time a probability is needed (display or dice-roll)
+// so there is exactly one code path computing "what are the odds right now".
 function stateProbability(N, k, decoherenceCount, shrinkFactor){
   const theta = Math.asin(1/Math.sqrt(N));
   const phi = (2*k+1)*theta;
@@ -67,6 +80,11 @@ function stateProbability(N, k, decoherenceCount, shrinkFactor){
   return { p, phi, radius };
 }
 
+// Builds the Board Game tile array for a given N and probability mode:
+// 'rounded' uses the dice-friendly fractions in ROUNDED_BOARDS, 'real'
+// computes each tile's actual Grover probability instead. Either way, a
+// guaranteed-success final tile (p=1) is appended, matching the printed
+// game's "advance onto the final tile to lock in the win" rule.
 function buildBoard(N, mode){
   const roundedCount = ROUNDED_BOARDS[N].length;
   const tiles = [];
@@ -148,6 +166,8 @@ const EVENT_COLORS = {
 
 /* ---------- Utilities ---------- */
 
+// Standard unbiased Fisher-Yates shuffle — used for both the event deck
+// and the classical opponent's card deck.
 function shuffle(arr){
   const a = arr.slice();
   for(let i=a.length-1;i>0;i--){
@@ -157,6 +177,8 @@ function shuffle(arr){
   return a;
 }
 
+// One gem + (N-1) blanks, shuffled — this is the opponent's entire
+// "classical search" deck for one search cycle.
 function freshClassicalDeck(N){
   const cards = [{type:'gem'}];
   for(let i=1;i<N;i++) cards.push({type:'blank'});
@@ -177,9 +199,14 @@ const TIMING = {
 
 /* ---------- Game state ---------- */
 
-let game = null;
+let game = null;   // the single source of truth for the in-progress game; see newGame() for its shape
 let soundOn = true;
 
+// Constructs a brand-new `game` object for the chosen config and does the
+// first render. Both Board Game fields (tileIndex/maxReachable) and State
+// Simulator fields (k/decoherenceCount) are always initialized regardless
+// of which board style is active — simpler than conditionally creating
+// them, and harmless since only the active mode's renderer/logic reads them.
 function newGame(config){
   const board = buildBoard(config.deckSize, config.probMode);
   const T = ROUNDED_BOARDS[config.deckSize].length; // shared "final/peak" checkpoint index, used by STATE mode too
@@ -194,7 +221,7 @@ function newGame(config){
       forcedMeasure: false,
       // STATE mode only:
       k: 0,               // current iteration count (unbounded — allows overshoot)
-      decoherenceCount: 0 // STATE mode only: number of uncancelled Decoherence hits (shrinks the circle by 3/4 each time)
+      decoherenceCount: 0 // number of uncancelled Decoherence hits (each one raises stateShrinkFactor() to a higher power)
     },
     classical: {
       deck: freshClassicalDeck(config.deckSize),
@@ -216,12 +243,22 @@ function newGame(config){
 function finalIndex(){ return game.board.length - 1; } // TILES mode
 function isStateMode(){ return game.config.boardMode === 'state'; }
 
+// Appends one entry to the on-screen game log and mirrors it into the
+// top-bar snippet. `who` is 'q' (you), 'c' (opponent), or 'e' (event) —
+// used to pick both the label ("[YOU]"/"[OPPONENT]"/"[EVENT]") and the
+// text color. `text` may contain simple inline HTML (event entries embed
+// a colored <span> around the event name), since both render targets use
+// innerHTML rather than textContent.
 function log(who, text){
   game.log.push({who, text});
   renderLog();
   updateHeaderLogEntry(who, text);
 }
 
+// Mirrors the latest log entry into the top bar, beside the game-mode
+// label. Once the game ends, endGame() takes over that slot to show the
+// win/lose result instead, so this bails out early rather than
+// overwriting it on any log() call that happens to fire afterward.
 function updateHeaderLogEntry(who, text){
   if(game.over) return; // endGame() owns the header slot once the game is decided
   document.getElementById('header-log-dot').style.display = '';
@@ -232,6 +269,13 @@ function updateHeaderLogEntry(who, text){
 
 /* ---------- Turn logic: classical opponent ---------- */
 
+/* ---------- Turn logic: classical opponent ----------
+   Fully automatic — there are no decisions for the opponent to make,
+   only cards to flip, so this runs start-to-finish without any input. */
+
+// Kicks off the opponent's turn. If a gem was found last turn, the deck
+// reshuffle that was deferred (so the found card stays visible for a
+// moment) happens here, right before drawing begins.
 function runClassicalTurn(){
   const c = game.classical;
   if(c.pendingReshuffle){
@@ -245,6 +289,10 @@ function runClassicalTurn(){
   drawNextClassicalCard(totalDraws, 0);
 }
 
+// Draws one card at a time (recursing via setTimeout for pacing, one
+// flip every TIMING.cardDrawGap), so Extra RAM's extra draws are visibly
+// sequential rather than resolving instantly. Stops early the moment a
+// gem is found, even if more draws were available this turn.
 function drawNextClassicalCard(totalDraws, doneCount){
   const c = game.classical;
   if(doneCount >= totalDraws){
@@ -273,6 +321,8 @@ function drawNextClassicalCard(totalDraws, doneCount){
   }
 }
 
+// Hands control over to the quantum player once the opponent's draws
+// (and, if applicable, its win) are fully resolved.
 function finishClassicalTurn(){
   render();
   if(checkWin()) return;
@@ -283,15 +333,24 @@ function finishClassicalTurn(){
 
 /* ---------- Turn logic: quantum player ---------- */
 
+// True while the arrow can still move right without exceeding whatever
+// Decoherence has capped maxReachable to.
 function canAdvance(){
   const q = game.quantum;
   return q.tileIndex < q.maxReachable;
 }
 
+// True only when it's actually your turn to click Advance/Measure —
+// used everywhere buttons decide whether to enable themselves.
 function isQuantumTurn(){
   return game.phase === 'quantum' && !game.over;
 }
 
+// doAdvance/doMeasure are the two button click-handlers (wired in
+// wireGameScreen) and simply dispatch to the Board Game or State
+// Simulator implementation depending on the current board style — every
+// other piece of code that needs to trigger a quantum action goes
+// through one of these two names rather than a *Tiles/*State variant.
 function doAdvance(){
   if(isStateMode()) doAdvanceState(); else doAdvanceTiles();
 }
@@ -299,6 +358,9 @@ function doMeasure(){
   if(isStateMode()) doMeasureState(); else doMeasureTiles();
 }
 
+// Board Game "Run the algorithm": move one tile right. Reaching the
+// final tile doesn't score immediately — per the printed game's rule,
+// you must wait one more turn (a guaranteed measure) to actually collect.
 function doAdvanceTiles(){
   if(!isQuantumTurn()) return;
   const q = game.quantum;
@@ -309,8 +371,12 @@ function doAdvanceTiles(){
   q.tileIndex++;
   if(q.tileIndex === finalIndex()){
     q.maxReachable = finalIndex();
-    if(q.qecCharges > 0) q.qecCharges = 0; // used up on any measurement
-    q.forcedMeasure = false;
+    // NOTE: QEC is intentionally left armed here. Reaching the final tile
+    // is not itself a measurement — you still wait one turn to collect —
+    // so a Decoherence draw in the very next event phase should still be
+    // blockable. The shield is only discarded on an actual measurement,
+    // which happens in doMeasureTiles below (or immediately if this
+    // Decoherence-cancellation path fires first, via runEvent).
     log('q', `You advance onto the final tile. The gem is guaranteed — collect it next turn.`);
   } else {
     log('q', `You run the algorithm. Now sitting at tile ${q.tileIndex+1}.`);
@@ -319,6 +385,12 @@ function doAdvanceTiles(){
   setTimeout(proceedAfterQuantumTurn, TIMING.advancePause);
 }
 
+// Board Game "Measure": roll the dice against the current tile's
+// probability (tile.p — the single source of truth also used for
+// display, so what you see is exactly what you get), then reset the
+// arrow to tile 1 regardless of outcome. Any measurement also clears
+// Decoherence's cap, discards an unused QEC charge, and clears a pending
+// Cosmic Ray, per the printed game's rules.
 function doMeasureTiles(){
   if(!isQuantumTurn()) return;
   game.phase = 'resolving';
@@ -415,6 +487,9 @@ function doMeasureState(){
   }, TIMING.measureOpen);
 }
 
+// Called after every quantum turn (Board Game or State Simulator alike)
+// to move to the next phase: an event draw if events are on, otherwise
+// straight back to the opponent.
 function proceedAfterQuantumTurn(){
   if(game.over) return;
   if(game.config.eventsEnabled){
@@ -430,6 +505,13 @@ function proceedAfterQuantumTurn(){
 
 /* ---------- Turn logic: events ---------- */
 
+// Draws and resolves the next event card (reshuffling the discard pile
+// back into a fresh deck if it's run out), then hands off to the
+// opponent's turn. Each case both mutates game state and picks the
+// flavor text/sound for that draw; DECOHERENCE has three sub-cases
+// (QEC cancels it / State Simulator shrinks the circle / Board Game
+// covers a tile) since its effect depends on both whether a shield is
+// armed and which board style is active.
 function runEvent(){
   if(game.eventDeck.length === 0) game.eventDeck = freshEventDeck(game.config.hardMode);
   const card = game.eventDeck.shift();
@@ -496,6 +578,9 @@ function runEvent(){
 
 /* ---------- Win check ---------- */
 
+// Checked after every single point-scoring opportunity (opponent's
+// draw, your measurement) — first to game.config.gemTarget wins
+// immediately, so ties can't happen.
 function checkWin(){
   if(game.quantum.points >= game.config.gemTarget){
     endGame('quantum');
@@ -508,6 +593,10 @@ function checkWin(){
   return false;
 }
 
+// Freezes the game (game.over = true disables all further input),
+// repurposes the event-panel quadrant into the win/lose result display
+// (rather than a separate screen), and recolors the header's log slot
+// and "New game" button to match the winner.
 function endGame(winner){
   game.over = true;
   updateReadouts(); // lock the action buttons
@@ -538,6 +627,11 @@ function endGame(winner){
 
 /* ---------- Rendering ---------- */
 
+/* ---------- Rendering ----------
+   render() is the one function that redraws everything from current
+   game state; call it after any state change rather than patching the
+   DOM piecemeal, so the UI can never drift out of sync with `game`. */
+
 function render(){
   renderGems();
   if(isStateMode()) renderQuantumState(); else renderQuantumBoard();
@@ -546,6 +640,7 @@ function render(){
   updateReadouts();
 }
 
+// Fills in each player's gem tally as a row of filled/empty gem icons.
 function renderGems(){
   const q = game.quantum, c = game.classical, target = game.config.gemTarget;
   document.getElementById('quantum-gems').innerHTML =
@@ -558,6 +653,8 @@ function hexToRgb(hex){
   const h = hex.replace('#','');
   return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
 }
+// Linear interpolation between two hex colors at t∈[0,1] — used to build
+// the washed-out-to-solid probability gradient below.
 function mixColor(hexA, hexB, t){
   const a = hexToRgb(hexA), b = hexToRgb(hexB);
   const r = Math.round(a[0] + (b[0]-a[0])*t);
@@ -569,10 +666,16 @@ function probToColor(p){
   // washed-out red/white at low probability -> pure quantum red at high probability
   return mixColor('#fbe9ec', '#96172E', Math.min(p, 1));
 }
+// Picks readable text color (light or dark) depending on how saturated
+// the probability-gradient background is at that point.
 function textColorFor(p){
   return p > 0.55 ? '#fdf1f2' : '#04141c';
 }
 
+// Draws the Board Game tile row: current position (arrow + glow),
+// covered/blocked tiles (Decoherence), the final tile's diamond icon,
+// and each open tile's color/percentage from tile.p — the exact same
+// value doAdvanceTiles/doMeasureTiles reads for the actual dice roll.
 function renderQuantumBoard(){
   const q = game.quantum;
   const wrap = document.getElementById('quantum-tiles');
@@ -600,8 +703,14 @@ function renderQuantumBoard(){
   });
 }
 
-const PLOT_OUTER_R = 80;
+const PLOT_OUTER_R = 80; // radius (SVG user units) of the fully-coherent unit circle in the Cartesian plot
 
+// Draws State Simulator's two boxes: the probability square (same
+// gradient function as Board Game's tiles) and the Cartesian plot —
+// unit circle radius shrunk by Decoherence, the rotating vector at
+// angle phi, and the QEC shield ring. `p`/`phi`/`radius` all come from
+// the one stateProbability() call, so display and doMeasureState's
+// actual dice roll can never disagree.
 function renderQuantumState(){
   const q = game.quantum;
   const N = game.config.deckSize;
@@ -650,6 +759,11 @@ function renderPlotCollapse(success){
   document.getElementById('plot-shield').style.visibility = 'hidden';
 }
 
+// Draws the opponent's deck as a grid of cards: face-down for
+// undrawn cards, and (for drawn ones) a gem or a red X depending on
+// what was flipped — `outer.classList.toggle('revealed', ...)` only
+// applies the flip-in animation to the single most-recently-drawn
+// card, so re-rendering the whole grid doesn't replay it on every card.
 function renderClassicalDeck(){
   const c = game.classical;
   const wrap = document.getElementById('classical-deck');
@@ -677,6 +791,10 @@ function renderClassicalDeck(){
   });
 }
 
+// Shows/hides the four status chips (QEC shield, Cosmic Ray, Decoherence
+// counter, Extra RAM) using visibility rather than display, so their
+// reserved layout space never shifts the board/action buttons around
+// when a chip appears or disappears mid-game.
 function renderIndicators(){
   const q = game.quantum, c = game.classical;
 
@@ -711,6 +829,9 @@ function renderIndicators(){
   }
 }
 
+// Renders the last 40 log entries (oldest at the bottom via the
+// column-reverse CSS, hence .reverse() here). Uses innerHTML since event
+// entries embed a colored <span> around the event name (see log()).
 function renderLog(){
   const wrap = document.getElementById('log-list');
   const cls = {q:'who-q', c:'who-c', e:'who-e'};
@@ -720,6 +841,10 @@ function renderLog(){
   ).reverse().join('');
 }
 
+// Updates the "Latest event" quadrant and re-triggers its flash
+// animation. `color` sets the --event-color custom property that the
+// CSS border/glow reads, so each event type gets its own color without
+// hardcoding five separate flash variants in CSS.
 function renderEventCard(title, desc, color){
   const panel = document.getElementById('event-card');
   document.getElementById('event-card-title').textContent = title;
@@ -730,6 +855,10 @@ function renderEventCard(title, desc, color){
   panel.classList.add('flash');
 }
 
+// Drives the circular icon beside the Measure button through its four
+// visual states: 'closed' (a plain "?", nothing measured yet), 'opening'
+// (the brief CSS-animated flip while suspense builds), and 'success'/
+// 'fail' (the gem or X icon, colored to match).
 function setMeasureBoxState(state){
   const inner = document.getElementById('measure-box-inner');
   const icon = document.getElementById('measure-icon');
@@ -749,6 +878,10 @@ function setMeasureBoxState(state){
 }
 function resetMeasureBox(){ setMeasureBoxState('closed'); }
 
+// Updates the opponent's status line (shared by both board styles),
+// then the action buttons' enabled/disabled state, then delegates the
+// rest (advance/measure sub-text, the "YOU" readout paragraph) to
+// whichever board style is active.
 function updateReadouts(){
   const q = game.quantum, c = game.classical;
   const qEl = document.getElementById('quantum-readout');
@@ -771,6 +904,9 @@ function updateReadouts(){
   if(isStateMode()) updateReadoutsState(myTurn); else updateReadoutsTiles(myTurn);
 }
 
+// Board Game's action-button text and the "YOU" readout paragraph:
+// explains *why* Advance is disabled (Cosmic Ray vs. Decoherence vs.
+// nowhere left to go) rather than just graying it out silently.
 function updateReadoutsTiles(myTurn){
   const q = game.quantum;
   const qEl = document.getElementById('quantum-readout');
@@ -816,6 +952,10 @@ function updateReadoutsTiles(myTurn){
   }
 }
 
+// State Simulator's equivalent of updateReadoutsTiles. Advance is never
+// disabled here (unlike Board Game — there's no tile cap to hit), so the
+// only thing worth telling the player is whether they've rotated past
+// the natural Grover peak and are now watching probability decline again.
 function updateReadoutsState(myTurn){
   const q = game.quantum;
   const qEl = document.getElementById('quantum-readout');
@@ -856,11 +996,19 @@ function updateReadoutsState(myTurn){
 
 /* ---------- Screens & setup ---------- */
 
+// Toggles which top-level <section class="screen"> is visible — there
+// are only two, 'setup-screen' and 'game-screen' (the old separate
+// win-screen was retired in favor of the in-quadrant result display).
 function showScreen(id){
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
 }
 
+// Reads every setup-screen control into a single config object, passed
+// straight into newGame(). `mode` (the raw 'no-events'/'normal'/'hard'
+// pill value) is kept alongside the derived eventsEnabled/hardMode
+// booleans since a couple of call sites want the original string
+// (e.g. for the header's mode label).
 function readConfigFromSetup(){
   const mode = document.querySelector('#game-mode-group .pill.active').dataset.value;
   return {
@@ -876,6 +1024,9 @@ function readConfigFromSetup(){
   };
 }
 
+// Single entry point for toggling sound — keeps the setup-screen switch,
+// the in-game mute button's icon/label, and the actual SFX module all in
+// sync no matter which of the two controls triggered the change.
 function setSoundEnabled(on){
   soundOn = on;
   SFX.setEnabled(on);
@@ -888,6 +1039,8 @@ function setSoundEnabled(on){
   muteBtn.title = on ? 'Mute sound' : 'Unmute sound';
 }
 
+// Blurb text shown live under each setup-screen toggle, keyed by the
+// pill's data-value. Purely descriptive — none of these affect game logic.
 const GAME_MODE_DESCRIPTIONS = {
   'no-events': 'See what the quantum advantage is in a perfect world.',
   'normal': 'Deal with decoherence and other challenges for quantum computers.',
@@ -904,6 +1057,11 @@ const DECOHERENCE_MODEL_DESCRIPTIONS = {
   'variable': 'The amount of decoherence varies with the database size to preserve the gameplay experience.'
 };
 
+// Wires up every setup-screen control. Each pill-group follows the same
+// pattern (clear .active from siblings, add it to the clicked pill), and
+// Board Style additionally toggles which of Probability Model /
+// Decoherence Model is relevant to show. The "Begin search" handler at
+// the bottom is the actual entry point into a new game.
 function wireSetupScreen(){
   document.querySelectorAll('.step-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
@@ -986,6 +1144,11 @@ function wireSetupScreen(){
   });
 }
 
+// Rebuilds the event-panel quadrant back to its pre-game placeholder.
+// Needed because endGame() replaces this panel's innerHTML entirely with
+// the win/lose result — a fresh game has to restore the original
+// title/desc elements rather than just clearing text, since those
+// elements themselves were overwritten.
 function resetEventPanel(){
   document.querySelector('#event-panel .quadrant-head').textContent = 'Latest event';
   const panel = document.getElementById('event-card');
@@ -996,6 +1159,9 @@ function resetEventPanel(){
   `;
 }
 
+// One-time wiring for the game screen's static buttons — called once at
+// load, unlike wireSetupScreen's pill groups which get re-clicked many
+// times across a session but never need re-wiring.
 function wireGameScreen(){
   document.getElementById('advance-btn').addEventListener('click', doAdvance);
   document.getElementById('measure-btn').addEventListener('click', doMeasure);

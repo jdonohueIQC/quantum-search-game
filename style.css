@@ -1,3 +1,15 @@
+/* ============================================================
+   Hadamard's Hoard — stylesheet
+   Dark "quantum lab" theme. Color convention: --quantum-* (red) is the
+   player's own color, --classical-* (blue) is the opponent's — used
+   consistently for panel accents, status chips, event colors, and the
+   State Simulator's probability gradient. See app.js's EVENT_COLORS for
+   how the five event types map onto this palette (plus a green --qec
+   accent that isn't part of the player-color pair). Layout is a CSS
+   grid of four quadrants (quantum panel / classical panel / log / event)
+   defined under "QUADRANT LAYOUT" below.
+   ============================================================ */
+
 :root{
   --bg: #0b0e14;
   --bg-panel: #12161f;
@@ -19,7 +31,7 @@
 
   --gem: #f2c94c;
   --danger: #e0637a;
-  --ok: #f2c94c;
+  --ok: #f2c94c; /* alias of --gem, kept separate in case "success" and "gem" ever need to diverge */
   --qec: #6fe6a0; /* light green — QEC's own color, distinct from Extra RAM's light blue */
   --radius: 10px;
   font-size: 16px;
@@ -31,22 +43,24 @@ html,body{
   margin:0; padding:0;
   background: var(--bg);
   color: var(--ink);
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Barlow Condensed', sans-serif; /* UW brand font for headings/UI chrome; see .mono/Verdana and Georgia usage below for the other two */
   min-height:100vh;
 }
 
 body{
+  /* Faint glow in each player's corner, matching their panel position
+     (quantum panel is top-left, classical panel is top-right). */
   background-image:
     radial-gradient(ellipse 900px 500px at 15% -10%, rgba(150,23,46,0.12), transparent 60%),
     radial-gradient(ellipse 900px 500px at 90% 10%, rgba(0,93,126,0.10), transparent 60%);
   background-attachment: fixed;
 }
 
-.mono{ font-family: Verdana, Geneva, sans-serif; }
+.mono{ font-family: Verdana, Geneva, sans-serif; } /* not currently applied anywhere in index.html — kept as a utility class if needed */
 
 #app{ min-height:100vh; }
 
-.screen{ display:none; }
+.screen{ display:none; } /* only one of #setup-screen/#game-screen is ever visible at once, toggled by showScreen() in app.js */
 .screen.active{ display:block; }
 
 /* ===================== SETUP ===================== */
@@ -404,6 +418,25 @@ h1{
   overflow: hidden;
 }
 #state-plot{ width: 100%; height: 100%; }
+/* ---- Cartesian plot layering (bottom to top) ----
+   1. .plot-lost — a full-size red disk, always present. This is what
+      shows through as the "lost" shell once Decoherence shrinks the
+      layer above it.
+   2. .plot-mask — a disk the same color as the panel background,
+      drawn on top of .plot-lost and shrunk (via its `r` attribute, set
+      in app.js) to the current radius. Wherever it doesn't cover
+      .plot-lost, red shows through — that ring IS the "shrunk circle"
+      visual, with no separate donut/annulus shape needed.
+   3. .plot-unit-outline — a stroked-only circle tracking the same
+      radius as .plot-mask, so the shrunk boundary has a visible edge.
+   4. .plot-shield — an optional dashed ring just outside the current
+      radius, shown only while a QEC charge is armed.
+   5. #plot-vector-group — the rotating/scaling arrow (see app.js's
+      renderQuantumState): `transform: rotate(angle) scale(radius)`
+      on a line fixed at (0,0)-(80,0) in the SVG's own coordinate
+      space, so scale shrinks its length from the origin and rotate
+      then spins the whole shrunk line — the transition below is what
+      makes both of those animate smoothly rather than snapping. */
 .plot-lost{ fill: var(--danger); }
 .plot-mask{ fill: var(--bg); transition: r .5s ease; }
 .plot-unit-outline{ fill:none; stroke: var(--ink-dim); stroke-width: 2.8; transition: r .5s ease; }
@@ -600,10 +633,17 @@ h1{
   padding: 14px 16px;
   background: var(--bg-panel);
   transition: box-shadow .3s ease, border-color .3s ease;
-  --event-color: var(--gem);
+  --event-color: var(--gem); /* fallback; overridden per-draw via panel.style.setProperty() in renderEventCard() */
 }
 .event-card.flash{
   border-color: var(--event-color);
+  /* color-mix() lets one rule produce a translucent glow in whatever
+     color --event-color currently holds, instead of hardcoding five
+     separate rgba() flash variants (one per event type). Needs a
+     reasonably current browser (Chrome/Edge 111+, Firefox 113+,
+     Safari 16.4+) — acceptable here since the rest of the app already
+     relies on similarly modern CSS/SVG features (animatable SVG
+     r/cx/transform attributes, etc). */
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--event-color) 18%, transparent);
 }
 .event-card-title{
