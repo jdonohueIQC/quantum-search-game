@@ -217,11 +217,46 @@
                 <svg x="-2" y="-112" width="17" height="17" viewBox="0 0 24 24"><polygon points="12,2 22,9 12,22 2,9" fill="#f2c94c"/></svg>
                 <text class="plot-label" x="10" y="-98">⟩</text>
 
+                <!-- Fixed reference line at angle theta — the initial
+                     uniform-superposition state |s⟩, which every Grover
+                     iteration's second reflection mirrors about. Its
+                     rotation is set once per render in
+                     renderQuantumState() (theta only depends on N, so it
+                     never actually changes mid-game) and never animates —
+                     only the solid vector below moves. -->
+                <g id="plot-reference-group">
+                  <line class="plot-reference-line" x1="0" y1="0" x2="80" y2="0"/>
+                </g>
+
+                <!-- Full-diameter dashed "active mirror" line, hidden
+                     until app.js rotates it to 0° (x-axis) or theta
+                     (reference line) and shows it for the duration of
+                     that reflection's leg — see animateReflectionThenAdvance.
+                     A separate element rather than restyling the axis/
+                     reference-line above, since those are each only drawn
+                     one radius long (or, for the x-axis, asymmetric with
+                     its arrowhead), whereas a mirror line needs to read
+                     as a full line straight through the origin. -->
+                <g id="plot-mirror-line-group">
+                  <line id="plot-mirror-line" class="plot-mirror-line" x1="-80" y1="0" x2="80" y2="0"/>
+                </g>
+
+                <!-- Angle-sweep indicator: an arc + arrowhead drawn between
+                     each reflection's start and end angle, cleared once
+                     both reflections finish. Hidden (empty path/points) by
+                     default; see drawAngleArc()/clearAngleArc() in app.js. -->
+                <path id="plot-angle-arc" class="plot-angle-arc" d=""/>
+                <polygon id="plot-angle-arrowhead" class="plot-angle-arrowhead" points=""/>
+
                 <!-- The rotating state vector. Line runs from the origin to
                      (80,0) at rest; app.js animates this group's `transform`
                      (rotate + scale together) rather than the line's own
                      endpoint, since SVG's `transform` is reliably
-                     CSS-transitionable while x2/y2 are not. -->
+                     CSS-transitionable while x2/y2 are not. Running the
+                     algorithm animates this group through two intermediate
+                     angles (see animateReflection() in app.js) before
+                     landing on the final one, to show Grover's iteration
+                     as the two geometric reflections it actually is. -->
                 <g id="plot-vector-group">
                   <line id="plot-vector" class="plot-vector" x1="0" y1="0" x2="80" y2="0"/>
                   <circle id="plot-vector-tip" class="plot-vector-tip" cx="80" cy="0" r="6"/>

@@ -32,13 +32,21 @@ const ROUNDED_BOARDS = {
   100: [[1,100],[1,10],[1,4],[2,5],[5,8],[4,5],[9,10]] // extrapolated — no printed board for N=100
 };
 
+// The Grover rotation angle theta for a database of size N: sin(theta) = 1/sqrt(N).
+// Pulled out as its own function since State Simulator's reflection
+// animation (see animateReflection()) needs theta directly, not just
+// the probability it produces.
+function groverTheta(N){
+  return Math.asin(1/Math.sqrt(N));
+}
+
 // Grover's algorithm success probability after k iterations, for a
 // database of size N: P(k) = sin²((2k+1)·θ), where sin(θ) = 1/√N.
 // This is the single source of truth for "real" probabilities — both
 // Board Game's "Real Grover formula" mode and every State Simulator
 // calculation route through this function.
 function groverProbability(N, k){
-  const theta = Math.asin(1/Math.sqrt(N));
+  const theta = groverTheta(N);
   return Math.pow(Math.sin((2*k+1)*theta), 2);
 }
 
@@ -71,7 +79,7 @@ function stateShrinkFactor(config){
 // Called fresh every time a probability is needed (display or dice-roll)
 // so there is exactly one code path computing "what are the odds right now".
 function stateProbability(N, k, decoherenceCount, shrinkFactor){
-  const theta = Math.asin(1/Math.sqrt(N));
+  const theta = groverTheta(N);
   const phi = (2*k+1)*theta;
   const pureP = Math.pow(Math.sin(phi), 2);
   const radius = Math.pow(shrinkFactor, decoherenceCount); // amplitude-like factor
@@ -210,6 +218,10 @@ let soundOn = true;
 function newGame(config){
   const board = buildBoard(config.deckSize, config.probMode);
   const T = ROUNDED_BOARDS[config.deckSize].length; // shared "final/peak" checkpoint index, used by STATE mode too
+  // Reset the State Simulator rotation tracker so a fresh game's first
+  // render doesn't compute its "nearest equivalent" angle relative to
+  // wherever a previous game's vector happened to end up.
+  lastVectorSvgDeg = svgAngleDeg(groverTheta(config.deckSize));
   game = {
     config,
     board,
@@ -433,16 +445,76 @@ function doMeasureTiles(){
    stateProbability), which is a more physical model than capping tiles —
    see README.md "Balance" / "Board style" for the full rationale. */
 
+// Runs the two reflections that make up one Grover iteration, then
+// actually advances q.k once the animation finishes:
+//   1. Reflect about the x-axis (the |X⟩ / "bad states" axis) — this is
+//      the oracle step, negating the angle: phi -> -phi.
+//   2. Reflect about the fixed theta reference line — this is the
+//      diffusion step, mirroring about that line: phi -> 2*theta - phi.
+// Both together take (2k+1)theta to (2k+3)theta, i.e. exactly the
+// "advance by one iteration" the non-animated formula already expects —
+// this function only changes *how* that transition is shown, not the
+// underlying math. Each leg re-uses #plot-vector-group's existing 0.5s
+// CSS transition (see style.css), so both legs land within ~1s total.
+function animateReflectionThenAdvance(){
+  const q = game.quantum;
+  const N = game.config.deckSize;
+  const theta = groverTheta(N);
+  const radius = Math.pow(stateShrinkFactor(game.config), q.decoherenceCount); // unaffected by rotation
+  const REFLECTION_STEP_MS = 500;
+
+  const phiStart = (2*q.k + 1) * theta;       // the "true" angle (may exceed 2π after enough overshoot)
+  const phiAfterOracle = -phiStart;           // reflect about the x-axis
+  const phiAfterDiffusion = 2*theta - phiAfterOracle; // reflect about the theta reference line
+
+  // degStart is wherever the vector is *actually* currently drawn (the
+  // tracker's own value), not a fresh svgAngleDeg(phiStart) computation —
+  // those are only congruent mod 360°, and using the tracker directly
+  // guarantees the arc starts exactly where the vector visually is.
+  const degStart = lastVectorSvgDeg;
+  const degMid = nearestEquivalentDeg(svgAngleDeg(phiAfterOracle));
+  const degEnd = nearestEquivalentDeg(svgAngleDeg(phiAfterDiffusion));
+
+  const group = document.getElementById('plot-vector-group');
+  const mirrorGroup = document.getElementById('plot-mirror-line-group');
+  const mirrorLine = document.getElementById('plot-mirror-line');
+
+  // Leg 1 — oracle reflection: mirror about the x-axis. The full-diameter
+  // dashed mirror line rotates to 0° and lights up for this leg, with an
+  // angle arc sweeping from the starting angle to where it lands.
+  mirrorGroup.setAttribute('transform', 'rotate(0)');
+  mirrorLine.style.visibility = 'visible';
+  drawAngleArc(degStart, degMid);
+  group.setAttribute('transform', `rotate(${degMid}) scale(${radius})`);
+  SFX.thwip();
+
+  setTimeout(()=>{
+    // Leg 2 — diffusion reflection: same mirror line, rotated to the
+    // fixed theta reference angle instead.
+    mirrorGroup.setAttribute('transform', `rotate(${svgAngleDeg(theta)})`);
+    drawAngleArc(degMid, degEnd);
+    group.setAttribute('transform', `rotate(${degEnd}) scale(${radius})`);
+    SFX.thwip();
+
+    setTimeout(()=>{
+      mirrorLine.style.visibility = 'hidden';
+      clearAngleArc();
+      q.k++;
+      log('q', `You run the algorithm. Iteration ${q.k}.`);
+      render(); // re-sets the vector to the same phiAfterDiffusion angle via the normal formula — no visual jump
+      setTimeout(proceedAfterQuantumTurn, TIMING.advancePause);
+    }, REFLECTION_STEP_MS);
+  }, REFLECTION_STEP_MS);
+}
+
 function doAdvanceState(){
   if(!isQuantumTurn()) return;
   const q = game.quantum;
   if(q.forcedMeasure) return;
 
   game.phase = 'resolving';
-  q.k++;
-  log('q', `You run the algorithm. Iteration ${q.k}.`);
-  render();
-  setTimeout(proceedAfterQuantumTurn, TIMING.advancePause);
+  updateReadouts(); // disable the buttons immediately — the reflection animation takes ~1s
+  animateReflectionThenAdvance();
 }
 
 function doMeasureState(){
@@ -705,6 +777,87 @@ function renderQuantumBoard(){
 
 const PLOT_OUTER_R = 80; // radius (SVG user units) of the fully-coherent unit circle in the Cartesian plot
 
+// Converts a math-convention angle (radians, counter-clockwise from +X)
+// into the degrees SVG's rotate() expects. Negated because SVG's Y axis
+// points down, which flips the visual sense of rotation direction.
+function svgAngleDeg(phi){
+  return -(phi * 180 / Math.PI);
+}
+
+// State Simulator's iteration count k is unbounded (overshoot is meant
+// to keep working no matter how many times you advance), so the "true"
+// angle (2k+1)*theta grows without limit too. sin²(phi) doesn't care —
+// it's periodic — but naively feeding that ever-growing raw value into
+// rotate() would make the vector spin through more and more full turns
+// on every single advance the longer a game runs, which is the "funny"
+// over-extension behavior this tracker exists to prevent.
+//
+// lastVectorSvgDeg remembers whatever raw degree value is currently
+// applied to #plot-vector-group. nearestEquivalentDeg() takes any target
+// angle, reduces it mod 360° to find its "true" position on the circle,
+// then re-expresses that position as whichever equivalent (target ± 360°n)
+// is closest to lastVectorSvgDeg — so every transition is always the
+// short way around, and the raw value never drifts far from a single
+// revolution's worth of range no matter how long the game has run.
+let lastVectorSvgDeg = 0;
+function nearestEquivalentDeg(targetDeg){
+  const targetPrincipal = ((targetDeg % 360) + 360) % 360;
+  const lastPrincipal = ((lastVectorSvgDeg % 360) + 360) % 360;
+  let diff = targetPrincipal - lastPrincipal;
+  if(diff > 180) diff -= 360;
+  if(diff < -180) diff += 360;
+  lastVectorSvgDeg = lastVectorSvgDeg + diff;
+  return lastVectorSvgDeg;
+}
+
+const ANGLE_ARC_R = 40;      // radius (SVG units) of the angle-sweep indicator — inside the vector's own length
+const ANGLE_ARROW_LEN = 9;   // arrowhead size at the end of that arc
+const ANGLE_ARROW_WIDTH = 5;
+
+// Draws (or updates) the angle-sweep arc + arrowhead between two SVG-space
+// angles in degrees — matching the exact numeric sweep the CSS transform
+// transition will animate through (see animateReflectionThenAdvance),
+// so the arc always agrees with which way the vector is actually turning.
+// `fromDeg`/`toDeg` use the same convention as svgAngleDeg()'s output:
+// plain degrees for the standard SVG trig functions below, no further
+// sign flips needed since svgAngleDeg() already accounted for that.
+function drawAngleArc(fromDeg, toDeg){
+  const deltaDeg = toDeg - fromDeg;
+  const sweepFlag = deltaDeg >= 0 ? 1 : 0;      // SVG "positive-angle" direction == increasing degree value here
+  const largeArcFlag = Math.abs(deltaDeg) > 180 ? 1 : 0;
+
+  const fromRad = fromDeg * Math.PI / 180;
+  const toRad = toDeg * Math.PI / 180;
+  const start = { x: ANGLE_ARC_R * Math.cos(fromRad), y: ANGLE_ARC_R * Math.sin(fromRad) };
+  const end   = { x: ANGLE_ARC_R * Math.cos(toRad),   y: ANGLE_ARC_R * Math.sin(toRad) };
+
+  document.getElementById('plot-angle-arc').setAttribute('d',
+    `M ${start.x} ${start.y} A ${ANGLE_ARC_R} ${ANGLE_ARC_R} 0 ${largeArcFlag} ${sweepFlag} ${end.x} ${end.y}`);
+
+  // Arrowhead tip sits at the arc's end point, oriented along the arc's
+  // tangent direction there (perpendicular to the radius, pointing
+  // whichever way sweepFlag says the arc is travelling).
+  const tangent = sweepFlag === 1
+    ? { x: -Math.sin(toRad), y: Math.cos(toRad) }
+    : { x: Math.sin(toRad), y: -Math.cos(toRad) };
+  const normal = { x: -tangent.y, y: tangent.x };
+  const backX = end.x - tangent.x * ANGLE_ARROW_LEN;
+  const backY = end.y - tangent.y * ANGLE_ARROW_LEN;
+  const points = [
+    `${end.x},${end.y}`,
+    `${backX + normal.x*ANGLE_ARROW_WIDTH},${backY + normal.y*ANGLE_ARROW_WIDTH}`,
+    `${backX - normal.x*ANGLE_ARROW_WIDTH},${backY - normal.y*ANGLE_ARROW_WIDTH}`
+  ].join(' ');
+  document.getElementById('plot-angle-arrowhead').setAttribute('points', points);
+}
+
+// Hides the angle-sweep arc between animations (empty path/points render
+// as nothing, no separate visibility toggle needed).
+function clearAngleArc(){
+  document.getElementById('plot-angle-arc').setAttribute('d', '');
+  document.getElementById('plot-angle-arrowhead').setAttribute('points', '');
+}
+
 // Draws State Simulator's two boxes: the probability square (same
 // gradient function as Board Game's tiles) and the Cartesian plot —
 // unit circle radius shrunk by Decoherence, the rotating vector at
@@ -738,8 +891,12 @@ function renderQuantumState(){
     shield.style.visibility = 'hidden';
   }
 
-  const svgAngle = -(phi * 180 / Math.PI); // negate: SVG's Y-down convention flips rotation sense
-  document.getElementById('plot-vector-group').setAttribute('transform', `rotate(${svgAngle}) scale(${radius})`);
+  // Fixed reference line at angle theta — doesn't depend on k or
+  // decoherence, only on N, so this is the same every render of a given
+  // game (harmless to set redundantly rather than special-case it).
+  document.getElementById('plot-reference-group').setAttribute('transform', `rotate(${svgAngleDeg(groverTheta(N))})`);
+
+  document.getElementById('plot-vector-group').setAttribute('transform', `rotate(${nearestEquivalentDeg(svgAngleDeg(phi))}) scale(${radius})`);
   const tip = document.getElementById('plot-vector-tip');
   tip.style.fill = '';
   tip.setAttribute('r', 6);
@@ -749,7 +906,7 @@ function renderQuantumState(){
 // radius, and the circle back to full size — called right when a STATE
 // mode measurement resolves, before the underlying state is reset.
 function renderPlotCollapse(success){
-  const targetSvgAngle = success ? -90 : 0;
+  const targetSvgAngle = nearestEquivalentDeg(success ? -90 : 0);
   document.getElementById('plot-vector-group').setAttribute('transform', `rotate(${targetSvgAngle}) scale(1)`);
   const tip = document.getElementById('plot-vector-tip');
   tip.style.fill = success ? '#f2c94c' : '#e0637a';

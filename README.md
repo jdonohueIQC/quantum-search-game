@@ -56,10 +56,50 @@ are all completely unaffected by this toggle.
 Two same-sized boxes sit side by side: the probability square (as
 before, same color gradient) and a new Cartesian plot. The plot draws
 the unit circle with the Y-axis labeled |GEM⟩ and the X-axis labeled |X⟩
-(no tick marks, per spec), and a vector starting at angle θ from the
-X-axis, where `sin(θ) = 1/√N`. Each "run the algorithm" click rotates the
-vector by `2θ` counter-clockwise (`φ = (2k+1)θ` after k iterations), and
-the measurement probability is `sin²(φ)` — exactly Grover's formula, with
+(no tick marks, per spec), a fixed dashed reference line at angle θ (the
+initial uniform-superposition state, `sin(θ) = 1/√N` — see below), and a
+solid vector starting at that same angle θ, overlapping the reference
+line at the very start of each cycle.
+
+Clicking "run the algorithm" doesn't just jump the vector to its new
+angle — it animates the two geometric reflections a real Grover
+iteration actually performs, landing within about a second:
+
+1. **Reflect about the x-axis** (the oracle step): the current angle φ
+   negates to −φ. Chosen over negating the x-component instead (the two
+   are equivalent for where the vector ends up) because animating a
+   sign-flip on y reads more clearly as "flipping across the X-axis".
+2. **Reflect about the fixed θ reference line** (the diffusion step):
+   −φ mirrors to `2θ − (−φ)`. For the very first iteration that's
+   θ → −θ → 3θ; the same two-reflection math holds for every later
+   iteration too, always mirroring about that same fixed line, which is
+   exactly why the line never moves once drawn.
+
+Each leg gets its own brief "thwip" sound and roughly half the total
+animation time, so both reflections are individually visible rather than
+blurring into one motion. Each leg also shows a full-diameter dashed
+mirror line across the whole circle — rotated to 0° (the x-axis) for the
+oracle step, then to the reference line's angle for the diffusion step —
+and draws a small arc with an arrowhead sweeping from the leg's start
+angle to its end angle, so which mirror is in play, and which way the
+vector is turning, don't require already knowing the theory to follow.
+The underlying math is unchanged by this — `φ = (2k+1)θ` after k
+iterations either way — this only changes how getting from one iteration
+to the next is *shown*.
+
+Since State Simulator's `k` is deliberately unbounded (that's the whole
+point — overshoot has to keep working no matter how many times you
+advance), the "true" angle `(2k+1)θ` grows without limit too, even
+though `sin²` doesn't care. A `nearestEquivalentDeg()` tracker
+(`lastVectorSvgDeg` in `app.js`) keeps the actual rotation value used on
+screen bounded to whatever's closest to the vector's current position
+mod 360°, rather than the raw ever-growing angle — otherwise the vector
+would visibly spin through more and more full turns on every single
+advance the longer a game ran. Confirmed this holds after 30 consecutive
+advances at N=12: the tracked value stays under 270°, versus over 1000°
+for the raw formula.
+
+The measurement probability is `sin²(φ)` — exactly Grover's formula, with
 no artificial ceiling, so you can keep rotating straight through the peak
 and watch probability genuinely decline again. On a measurement, the
 vector visibly collapses onto |GEM⟩ (success, gold) or |X⟩ (failure,

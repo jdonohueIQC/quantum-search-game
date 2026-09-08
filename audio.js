@@ -150,6 +150,13 @@ const SFX = (function(){
     // A single soft, unremarkable blip — Neutral (nothing happens).
     neutral(){
       tone(440, 0, 0.08, 'sine', 0.06);
+    },
+
+    // Quick downward whip-crack — one of Grover's two geometric
+    // reflections landing, in State Simulator's advance animation.
+    thwip(){
+      noiseBurst(0, 0.05, 0.10);
+      sweep(900, 300, 0, 0.12, 'sine', 0.10);
     }
   };
 })();

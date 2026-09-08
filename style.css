@@ -450,6 +450,29 @@ h1{
 #plot-vector-group{ transition: transform .5s cubic-bezier(.4,0,.2,1); }
 .plot-vector{ stroke: var(--quantum-bright); stroke-width: 4; stroke-linecap: round; }
 .plot-vector-tip{ fill: var(--quantum-bright); }
+.plot-reference-line{
+  stroke: var(--ink-dim); stroke-width: 2; stroke-dasharray: 5 5; opacity: 0.55;
+}
+/* Full-diameter dashed mirror line, shown across the whole circle (not
+   just one radius) for whichever reflection is currently in progress —
+   see the HTML comment above #plot-mirror-line-group for why this is a
+   separate element rather than restyling the axis/reference-line. */
+.plot-mirror-line{
+  stroke: var(--gem);
+  stroke-width: 2.5;
+  stroke-dasharray: 6 5;
+  visibility: hidden;
+}
+/* The angle-sweep arc drawn between each reflection's start/end angle
+   (see drawAngleArc() in app.js) — same gold accent as the active-mirror
+   highlight above, so the two visual cues read as one connected effect. */
+.plot-angle-arc{
+  fill: none;
+  stroke: var(--gem);
+  stroke-width: 2.5;
+  stroke-dasharray: 4 3;
+}
+.plot-angle-arrowhead{ fill: var(--gem); }
 
 /* ---------- Quantum tiles ---------- */
 .quantum-board{
